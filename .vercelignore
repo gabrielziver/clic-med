@@ -1,0 +1,8 @@
+.pnpm-store/
+node_modules/
+dist/
+tmp/
+.git/
+.tools/
+supabase/.temp/
+*.log
