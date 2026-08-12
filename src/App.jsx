@@ -11,6 +11,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Trash2,
   UserRound,
   UsersRound,
   WalletCards,
@@ -78,6 +79,10 @@ function emptyPatient() {
     sessions_completed: 0,
     sessions_total: 10,
   };
+}
+
+function newAppointmentDraft(date = dateKey(new Date())) {
+  return { id: crypto.randomUUID(), date, time: "09:00" };
 }
 
 function AccessScreen({ email, grant, onLogout }) {
@@ -236,18 +241,26 @@ function Modal({ title, subtitle, onClose, children }) {
   );
 }
 
-function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar paciente" }) {
+function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar paciente", defaultAppointmentDate }) {
   const [form, setForm] = useState(() => ({ ...emptyPatient(), ...initial, schedule_text: initial?.schedule?.join(", ") || initial?.schedule_text || "" }));
+  const [addToAgenda, setAddToAgenda] = useState(!initial);
+  const [appointmentDrafts, setAppointmentDrafts] = useState(() => [newAppointmentDraft(defaultAppointmentDate)]);
   function update(key, value) { setForm((current) => ({ ...current, [key]: value })); }
+  function updateDraft(id, key, value) {
+    setAppointmentDrafts((current) => current.map((item) => item.id === id ? { ...item, [key]: value } : item));
+  }
   function submit(event) {
     event.preventDefault();
+    const initialAppointments = addToAgenda ? appointmentDrafts.map(({ date, time }) => ({ date, time })) : [];
+    const typedSchedule = form.schedule_text.split(/[,;\n]+/).map((item) => item.trim()).filter(Boolean);
     onSave({
       ...form,
       weekly_sessions: Number(form.weekly_sessions),
       session_value: Number(form.session_value),
       sessions_completed: Math.min(Number(form.sessions_completed), Number(form.sessions_total)),
       sessions_total: Number(form.sessions_total),
-      schedule: form.schedule_text.split(/[,;\n]+/).map((item) => item.trim()).filter(Boolean),
+      schedule: typedSchedule.length ? typedSchedule : initialAppointments.map((item) => `${formatDate(item.date)} ${item.time}`),
+      initial_appointments: initialAppointments,
     });
   }
   return (
@@ -265,9 +278,24 @@ function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar
           <label className="span-2">Terapia / acompanhamento<input value={form.therapies} onChange={(e) => update("therapies", e.target.value)} required /></label>
           <label>Valor por sessão<input type="number" min="0" step="0.01" value={form.session_value} onChange={(e) => update("session_value", e.target.value)} required /></label>
           <label>Sessões por semana<input type="number" min="1" max="7" value={form.weekly_sessions} onChange={(e) => update("weekly_sessions", e.target.value)} required /></label>
-          <label className="span-2">Dias e horários<input value={form.schedule_text} onChange={(e) => update("schedule_text", e.target.value)} placeholder="Segunda 09:00, Quarta 09:00" required /></label>
+          <label className="span-2">Rotina de atendimento <span className="optional">(opcional)</span><input value={form.schedule_text} onChange={(e) => update("schedule_text", e.target.value)} placeholder="Segunda 09:00, Quarta 09:00" /></label>
         </div>
       </section>
+      {!initial && <section className="form-section schedule-section">
+        <div className="schedule-option">
+          <div><h2>Adicionar à agenda</h2><p>Crie as primeiras sessões junto com o cadastro. Cada atendimento terá duração de 1 hora.</p></div>
+          <label className="switch-control"><input type="checkbox" checked={addToAgenda} onChange={(event) => setAddToAgenda(event.target.checked)} /><span /><b>{addToAgenda ? "Ativado" : "Desativado"}</b></label>
+        </div>
+        {addToAgenda && <div className="schedule-builder">
+          <div className="schedule-head"><span>Data</span><span>Horário</span><span>Ação</span></div>
+          {appointmentDrafts.map((draft) => <div className="schedule-row" key={draft.id}>
+            <label><span className="sr-only">Data da sessão</span><input type="date" value={draft.date} onChange={(event) => updateDraft(draft.id, "date", event.target.value)} required /></label>
+            <label><span className="sr-only">Horário da sessão</span><input type="time" min="08:00" max="17:00" step="3600" value={draft.time} onChange={(event) => updateDraft(draft.id, "time", event.target.value)} required /></label>
+            <button type="button" className="icon-button danger" aria-label="Remover horário" disabled={appointmentDrafts.length === 1} onClick={() => setAppointmentDrafts((current) => current.filter((item) => item.id !== draft.id))}><Trash2 size={17} /></button>
+          </div>)}
+          <button type="button" className="secondary-button add-schedule" onClick={() => setAppointmentDrafts((current) => [...current, newAppointmentDraft(defaultAppointmentDate)])}><Plus size={17} />Adicionar outro horário</button>
+        </div>}
+      </section>}
       <section className="form-section">
         <div className="form-section-head"><h2>Plano e prontuário</h2><p>Controle do ciclo de sessões e registro do acompanhamento.</p></div>
         <div className="form-grid three">
@@ -406,15 +434,55 @@ function App() {
   async function savePatient(values, patientId = null) {
     setBusy(true);
     setError("");
+    const initialAppointments = values.initial_appointments || [];
     const payload = { ...values, user_id: session.user.id };
     delete payload.schedule_text;
-    const query = patientId ? supabase.from("patients").update(payload).eq("id", patientId) : supabase.from("patients").insert(payload);
-    const { error: saveError } = await query;
+    delete payload.initial_appointments;
+
+    const duplicateDraft = initialAppointments.find((item, index) => initialAppointments.findIndex((candidate) => candidate.date === item.date && candidate.time === item.time) !== index);
+    const occupiedDraft = initialAppointments.find((item) => appointments.some((appointment) => dateKey(appointment.starts_at) === item.date && timeOf(appointment.starts_at) === item.time));
+    if (!patientId && (duplicateDraft || occupiedDraft)) {
+      setBusy(false);
+      setError(duplicateDraft ? "Existem datas e horários repetidos no cadastro." : `O horário de ${formatDate(occupiedDraft.date)} às ${occupiedDraft.time} já está ocupado.`);
+      return;
+    }
+
+    const query = patientId
+      ? supabase.from("patients").update(payload).eq("id", patientId)
+      : supabase.from("patients").insert(payload).select("id").single();
+    const { data: savedPatient, error: saveError } = await query;
+    if (!saveError && !patientId && initialAppointments.length) {
+      const sessions = initialAppointments.map((item) => {
+        const start = new Date(`${item.date}T${item.time}:00`);
+        return {
+          user_id: session.user.id,
+          patient_id: savedPatient.id,
+          starts_at: start.toISOString(),
+          ends_at: new Date(start.getTime() + 60 * 60 * 1000).toISOString(),
+          procedure: values.therapies,
+          unit: "",
+          status: "presente",
+          payment_status: "Pendente",
+          amount: Number(values.session_value || 0),
+        };
+      });
+      const { error: appointmentError } = await supabase.from("appointments").insert(sessions);
+      if (appointmentError) {
+        await supabase.from("patients").delete().eq("id", savedPatient.id);
+        setBusy(false);
+        setError(`Não foi possível adicionar as sessões: ${appointmentError.message}`);
+        return;
+      }
+    }
     setBusy(false);
     if (saveError) { setError(saveError.message); return; }
     setModal(null);
     setPatientView("list");
-    setToast(patientId ? "Prontuário atualizado." : "Paciente cadastrado.");
+    setToast(patientId ? "Prontuário atualizado." : initialAppointments.length ? `Paciente cadastrado com ${initialAppointments.length} ${initialAppointments.length === 1 ? "sessão" : "sessões"}.` : "Paciente cadastrado.");
+    if (!patientId && initialAppointments.length) {
+      setSelectedDate(dateFromKey(initialAppointments[0].date));
+      setActiveTab("agenda");
+    }
     await loadData();
   }
 
@@ -506,7 +574,7 @@ function App() {
         {dataLoading ? <div className="content-loading"><span className="spinner" />Carregando dados...</div> : (
           <>
             {activeTab === "agenda" && <AgendaView appointments={appointments} daily={dailyAppointments} patients={patients} selectedDate={selectedDate} setSelectedDate={setSelectedDate} calendarOpen={calendarOpen} setCalendarOpen={setCalendarOpen} openAppointment={(appointment) => setModal({ type: "patient", patientId: appointment.patient_id, appointmentId: appointment.id })} />}
-            {activeTab === "pacientes" && <PatientsView view={patientView} setView={setPatientView} patients={filteredPatients} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} insuranceFilter={insuranceFilter} setInsuranceFilter={setInsuranceFilter} onOpen={(patient) => setModal({ type: "patient", patientId: patient.id })} onSave={(values) => savePatient(values)} busy={busy} />}
+            {activeTab === "pacientes" && <PatientsView view={patientView} setView={setPatientView} patients={filteredPatients} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} insuranceFilter={insuranceFilter} setInsuranceFilter={setInsuranceFilter} onOpen={(patient) => setModal({ type: "patient", patientId: patient.id })} onSave={(values) => savePatient(values)} busy={busy} defaultAppointmentDate={dateKey(selectedDate)} />}
             {activeTab === "financeiro" && <FinanceView totals={totals} appointments={appointments} patients={patients} selectedDate={selectedDate} professional={{ name: session.user.user_metadata?.full_name, email: session.user.email }} onEdit={(appointment) => setModal({ type: "finance", appointmentId: appointment.id })} />}
             {activeTab === "acessos" && isOwner && <AccessView grants={accessGrants} busy={busy} onSave={saveAccessGrant} onRevoke={revokeAccess} />}
           </>
@@ -548,14 +616,14 @@ function AgendaView({ appointments, daily, patients, selectedDate, setSelectedDa
   );
 }
 
-function PatientsView({ view, setView, patients, search, setSearch, statusFilter, setStatusFilter, insuranceFilter, setInsuranceFilter, onOpen, onSave, busy }) {
+function PatientsView({ view, setView, patients, search, setSearch, statusFilter, setStatusFilter, insuranceFilter, setInsuranceFilter, onOpen, onSave, busy, defaultAppointmentDate }) {
   return <section className="panel patient-panel">
     <nav className="subtabs"><button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>Lista de pacientes</button><button className={view === "add" ? "active" : ""} onClick={() => setView("add")}>Adicionar paciente</button></nav>
     {view === "list" ? <>
       <div className="filters"><label>Buscar<div className="input-with-icon"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome do paciente" /></div></label><label>Status<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option>Todos</option><option>Ativo</option><option>Pausado</option></select></label><label>Convênio<select value={insuranceFilter} onChange={(e) => setInsuranceFilter(e.target.value)}><option>Todos</option><option>Particular</option><option>Unimed</option><option>Bradesco Saúde</option><option>SulAmérica</option><option>Outro</option></select></label></div>
       <div className="patient-table-head"><span>Nome</span><span>CID</span><span>Convênio</span><span>Sessões</span><span>Status</span></div>
       <div>{patients.length ? patients.map((patient) => <button className="patient-row" key={patient.id} onClick={() => onOpen(patient)}><span><strong>{patient.full_name}</strong><small>{patient.therapies}</small></span><b>{patient.cid || "—"}</b><span>{patient.insurance}</span><span>{patient.weekly_sessions} / semana</span><em>{patient.status}</em></button>) : <div className="empty-state"><UsersRound size={28} /><h3>Nenhum paciente encontrado</h3><p>Cadastre o primeiro paciente para começar.</p><button className="primary-button" onClick={() => setView("add")}><Plus size={17} />Adicionar paciente</button></div>}</div>
-    </> : <PatientForm onSave={onSave} onCancel={() => setView("list")} busy={busy} />}
+    </> : <PatientForm onSave={onSave} onCancel={() => setView("list")} busy={busy} defaultAppointmentDate={defaultAppointmentDate} />}
   </section>;
 }
 
