@@ -21,7 +21,7 @@ const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
 const shortWeekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const statusInfo = {
   presente: { label: "Presente", className: "present" },
-  faltou_assinou: { label: "Faltou, mas será cobrado", className: "charged-absence" },
+  faltou_assinou: { label: "Faltou, mas terá reembolso", className: "charged-absence" },
   nao_compareceu: { label: "Não compareceu", className: "absence" },
   reagendado: { label: "Reagendado", className: "rescheduled" },
 };
