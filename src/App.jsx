@@ -86,11 +86,9 @@ function newAppointmentDraft(date = dateKey(new Date()), time = "09:00") {
 }
 
 function nextAppointmentDraft(current) {
-  const [hour, minute] = current.time.split(":").map(Number);
-  if (hour < 17) return newAppointmentDraft(current.date, `${String(hour + 1).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
   const nextDate = dateFromKey(current.date);
-  nextDate.setDate(nextDate.getDate() + 1);
-  return newAppointmentDraft(dateKey(nextDate), "09:00");
+  nextDate.setDate(nextDate.getDate() + 7);
+  return newAppointmentDraft(dateKey(nextDate), current.time);
 }
 
 function AccessScreen({ email, grant, onLogout }) {
@@ -301,7 +299,7 @@ function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar
             <label><span className="sr-only">Horário da sessão</span><input type="time" min="08:00" max="17:00" step="3600" value={draft.time} onChange={(event) => updateDraft(draft.id, "time", event.target.value)} required /></label>
             <button type="button" className="icon-button danger" aria-label="Remover horário" disabled={appointmentDrafts.length === 1} onClick={() => setAppointmentDrafts((current) => current.filter((item) => item.id !== draft.id))}><Trash2 size={17} /></button>
           </div>)}
-          <button type="button" className="secondary-button add-schedule" onClick={() => setAppointmentDrafts((current) => [...current, nextAppointmentDraft(current[current.length - 1])])}><Plus size={17} />Adicionar outro horário</button>
+          <button type="button" className="secondary-button add-schedule" onClick={() => setAppointmentDrafts((current) => [...current, nextAppointmentDraft(current[current.length - 1])])}><Plus size={17} />Adicionar outra data e horário</button>
         </div>}
       </section>}
       <section className="form-section">
