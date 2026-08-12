@@ -6,9 +6,11 @@ import {
   ChevronRight,
   CircleDollarSign,
   Clock3,
+  Download,
   LogOut,
   Plus,
   Search,
+  ShieldCheck,
   UserRound,
   UsersRound,
   WalletCards,
@@ -16,6 +18,7 @@ import {
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
 
+const OWNER_EMAIL = "oliverziver@gmail.com";
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const shortWeekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -59,7 +62,9 @@ function daysUntil(value) {
 function emptyPatient() {
   return {
     full_name: "",
+    patient_email: "",
     guardian: "",
+    guardian_contact: "",
     insurance: "Particular",
     cid: "",
     therapies: "Psicoterapia individual",
@@ -73,6 +78,22 @@ function emptyPatient() {
     sessions_completed: 0,
     sessions_total: 10,
   };
+}
+
+function AccessScreen({ email, grant, onLogout }) {
+  const expired = grant?.expires_at && new Date(grant.expires_at) <= new Date();
+  return (
+    <main className="access-page">
+      <section className="access-card">
+        <Brand />
+        <div className="access-icon"><ShieldCheck size={28} /></div>
+        <h1>{expired ? "Seu acesso expirou" : "Acesso aguardando liberação"}</h1>
+        <p>{expired ? "Fale com o administrador para renovar sua assinatura." : "Sua conta foi criada, mas ainda precisa ser liberada pelo administrador."}</p>
+        <div className="access-account"><span>Conta conectada</span><strong>{email}</strong>{grant?.expires_at && <small>Validade anterior: {new Date(grant.expires_at).toLocaleDateString("pt-BR")}</small>}</div>
+        <button className="secondary-button wide" onClick={onLogout}><LogOut size={17} />Sair desta conta</button>
+      </section>
+    </main>
+  );
 }
 
 function Brand() {
@@ -236,6 +257,8 @@ function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar
         <div className="form-grid three">
           <label className="span-2">Nome completo<input value={form.full_name} onChange={(e) => update("full_name", e.target.value)} required /></label>
           <label>Responsável<input value={form.guardian || ""} onChange={(e) => update("guardian", e.target.value)} /></label>
+          <label className="span-2">E-mail do paciente<input type="email" value={form.patient_email || ""} onChange={(e) => update("patient_email", e.target.value)} placeholder="paciente@exemplo.com" /></label>
+          <label>Contato do responsável<input type="tel" value={form.guardian_contact || ""} onChange={(e) => update("guardian_contact", e.target.value)} placeholder="(81) 99999-9999" /></label>
           <label>Convênio<select value={form.insurance} onChange={(e) => update("insurance", e.target.value)}><option>Particular</option><option>Unimed</option><option>Bradesco Saúde</option><option>SulAmérica</option><option>Outro</option></select></label>
           <label>CID / Laudo<input value={form.cid || ""} onChange={(e) => update("cid", e.target.value)} /></label>
           <label>Status<select value={form.status} onChange={(e) => update("status", e.target.value)}><option>Ativo</option><option>Pausado</option></select></label>
@@ -263,6 +286,10 @@ function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar
 function App() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessAllowed, setAccessAllowed] = useState(false);
+  const [currentGrant, setCurrentGrant] = useState(null);
+  const [accessGrants, setAccessGrants] = useState([]);
   const [activeTab, setActiveTab] = useState("agenda");
   const [patients, setPatients] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -285,27 +312,95 @@ function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  useEffect(() => { if (session) loadData(); }, [session]);
+  useEffect(() => {
+    if (!session) {
+      setAccessAllowed(false);
+      setCurrentGrant(null);
+      return;
+    }
+    checkAccess(session);
+  }, [session]);
+  useEffect(() => {
+    if (!session || !accessAllowed || session.user.email?.toLowerCase() === OWNER_EMAIL) return undefined;
+    const timer = setInterval(async () => {
+      const { data } = await supabase.rpc("has_active_access");
+      if (!data) setAccessAllowed(false);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [session, accessAllowed]);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 2600);
     return () => clearTimeout(timer);
   }, [toast]);
 
-  async function loadData() {
+  async function checkAccess(activeSession) {
+    setAccessLoading(true);
+    setError("");
+    const owner = activeSession.user.email?.toLowerCase() === OWNER_EMAIL;
+    if (!owner && activeTab === "acessos") setActiveTab("agenda");
+    const [accessResult, grantResult] = await Promise.all([
+      supabase.rpc("has_active_access"),
+      owner
+        ? Promise.resolve({ data: null, error: null })
+        : supabase.from("access_grants").select("email, active, starts_at, expires_at").eq("email", activeSession.user.email).maybeSingle(),
+    ]);
+    setAccessLoading(false);
+    if (accessResult.error || grantResult.error) {
+      setError(accessResult.error?.message || grantResult.error?.message);
+      setAccessAllowed(false);
+      return;
+    }
+    setCurrentGrant(grantResult.data || null);
+    setAccessAllowed(Boolean(accessResult.data));
+    if (accessResult.data) await loadData(owner);
+  }
+
+  async function loadData(owner = session?.user.email?.toLowerCase() === OWNER_EMAIL) {
     setDataLoading(true);
     setError("");
-    const [patientResult, appointmentResult] = await Promise.all([
+    const [patientResult, appointmentResult, grantsResult] = await Promise.all([
       supabase.from("patients").select("*").order("full_name"),
       supabase.from("appointments").select("*").order("starts_at"),
+      owner ? supabase.from("access_grants").select("*").order("expires_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
     ]);
     setDataLoading(false);
-    if (patientResult.error || appointmentResult.error) {
-      setError(patientResult.error?.message || appointmentResult.error?.message);
+    if (patientResult.error || appointmentResult.error || grantsResult.error) {
+      setError(patientResult.error?.message || appointmentResult.error?.message || grantsResult.error?.message);
       return;
     }
     setPatients(patientResult.data || []);
     setAppointments(appointmentResult.data || []);
+    setAccessGrants(grantsResult.data || []);
+  }
+
+  async function saveAccessGrant({ email, days, notes }) {
+    setBusy(true);
+    setError("");
+    const startsAt = new Date();
+    const expiresAt = new Date(startsAt.getTime() + Number(days) * 86400000);
+    const { error: grantError } = await supabase.from("access_grants").upsert({
+      email: email.trim().toLowerCase(),
+      active: true,
+      starts_at: startsAt.toISOString(),
+      expires_at: expiresAt.toISOString(),
+      notes: notes.trim() || null,
+      created_by: session.user.id,
+    }, { onConflict: "email" });
+    setBusy(false);
+    if (grantError) { setError(grantError.message); return false; }
+    setToast(`Acesso liberado por ${days} dias.`);
+    await loadData(true);
+    return true;
+  }
+
+  async function revokeAccess(id) {
+    setBusy(true);
+    const { error: revokeError } = await supabase.from("access_grants").update({ active: false }).eq("id", id);
+    setBusy(false);
+    if (revokeError) { setError(revokeError.message); return; }
+    setToast("Acesso bloqueado.");
+    await loadData(true);
   }
 
   async function savePatient(values, patientId = null) {
@@ -369,10 +464,13 @@ function App() {
     const total = received + pending;
     return { received, pending, percent: total ? Math.round((received / total) * 100) : 0, ticket: billable.length ? total / billable.length : 0 };
   }, [appointments]);
+  const isOwner = session?.user.email?.toLowerCase() === OWNER_EMAIL;
 
   if (!isSupabaseConfigured) return <main className="setup-page"><section><Brand /><h1>Conecte o banco para iniciar</h1><p>As variáveis do Supabase ainda não foram configuradas.</p><code>VITE_SUPABASE_URL</code><code>VITE_SUPABASE_ANON_KEY</code></section></main>;
   if (authLoading) return <main className="loading-page"><Brand /><span className="spinner" /></main>;
   if (!session) return <AuthScreen onAuthenticated={setSession} />;
+  if (accessLoading) return <main className="loading-page"><Brand /><span className="spinner" /></main>;
+  if (!accessAllowed) return <AccessScreen email={session.user.email} grant={currentGrant} onLogout={() => supabase.auth.signOut()} />;
 
   const currentPatient = modal?.patientId ? patients.find((item) => item.id === modal.patientId) : null;
   const currentAppointment = modal?.appointmentId ? appointments.find((item) => item.id === modal.appointmentId) : null;
@@ -385,6 +483,7 @@ function App() {
           <button className={activeTab === "agenda" ? "active" : ""} onClick={() => setActiveTab("agenda")}><CalendarDays size={18} />Agenda</button>
           <button className={activeTab === "pacientes" ? "active" : ""} onClick={() => setActiveTab("pacientes")}><UsersRound size={18} />Pacientes</button>
           <button className={activeTab === "financeiro" ? "active" : ""} onClick={() => setActiveTab("financeiro")}><WalletCards size={18} />Financeiro</button>
+          {isOwner && <button className={activeTab === "acessos" ? "active" : ""} onClick={() => setActiveTab("acessos")}><ShieldCheck size={18} />Acessos</button>}
         </nav>
         <div className="sidebar-metric"><span>Entradas</span><strong>{currency.format(totals.received)}</strong><small>{currency.format(totals.pending)} pendente</small></div>
         <button className="account-button" onClick={() => supabase.auth.signOut()}><UserRound size={18} /><span>{session.user.email}</span><LogOut size={17} /></button>
@@ -392,14 +491,15 @@ function App() {
 
       <main className="workspace">
         <header className="topbar">
-          <div><p className="eyebrow">{activeTab === "agenda" ? longDate(selectedDate) : activeTab === "pacientes" ? `${patients.filter((p) => p.status === "Ativo").length} pacientes ativos` : `${monthNames[selectedDate.getMonth()]} de ${selectedDate.getFullYear()}`}</p><h1>{activeTab === "agenda" ? "Agenda do dia" : activeTab === "pacientes" ? "Cadastro de pacientes" : "Financeiro geral"}</h1></div>
-          <button className="primary-button" onClick={() => activeTab === "pacientes" ? setPatientView("add") : setModal({ type: "appointment-new" })}><Plus size={18} />{activeTab === "pacientes" ? "Novo paciente" : "Nova sessão"}</button>
+          <div><p className="eyebrow">{activeTab === "agenda" ? longDate(selectedDate) : activeTab === "pacientes" ? `${patients.filter((p) => p.status === "Ativo").length} pacientes ativos` : activeTab === "financeiro" ? `${monthNames[selectedDate.getMonth()]} de ${selectedDate.getFullYear()}` : "Administração da assinatura"}</p><h1>{activeTab === "agenda" ? "Agenda do dia" : activeTab === "pacientes" ? "Cadastro de pacientes" : activeTab === "financeiro" ? "Financeiro geral" : "Controle de acessos"}</h1></div>
+          {(activeTab === "agenda" || activeTab === "pacientes") && <button className="primary-button" onClick={() => activeTab === "pacientes" ? setPatientView("add") : setModal({ type: "appointment-new" })}><Plus size={18} />{activeTab === "pacientes" ? "Novo paciente" : "Nova sessão"}</button>}
         </header>
 
-        <nav className="mobile-tabs">
+        <nav className={`mobile-tabs ${isOwner ? "owner" : ""}`}>
           <button className={activeTab === "agenda" ? "active" : ""} onClick={() => setActiveTab("agenda")}>Agenda</button>
           <button className={activeTab === "pacientes" ? "active" : ""} onClick={() => setActiveTab("pacientes")}>Pacientes</button>
           <button className={activeTab === "financeiro" ? "active" : ""} onClick={() => setActiveTab("financeiro")}>Financeiro</button>
+          {isOwner && <button className={activeTab === "acessos" ? "active" : ""} onClick={() => setActiveTab("acessos")}>Acessos</button>}
         </nav>
 
         {error && <div className="error-banner">{error}<button onClick={() => setError("")}><X size={16} /></button></div>}
@@ -407,7 +507,8 @@ function App() {
           <>
             {activeTab === "agenda" && <AgendaView appointments={appointments} daily={dailyAppointments} patients={patients} selectedDate={selectedDate} setSelectedDate={setSelectedDate} calendarOpen={calendarOpen} setCalendarOpen={setCalendarOpen} openAppointment={(appointment) => setModal({ type: "patient", patientId: appointment.patient_id, appointmentId: appointment.id })} />}
             {activeTab === "pacientes" && <PatientsView view={patientView} setView={setPatientView} patients={filteredPatients} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} insuranceFilter={insuranceFilter} setInsuranceFilter={setInsuranceFilter} onOpen={(patient) => setModal({ type: "patient", patientId: patient.id })} onSave={(values) => savePatient(values)} busy={busy} />}
-            {activeTab === "financeiro" && <FinanceView totals={totals} appointments={appointments} patients={patients} onEdit={(appointment) => setModal({ type: "finance", appointmentId: appointment.id })} />}
+            {activeTab === "financeiro" && <FinanceView totals={totals} appointments={appointments} patients={patients} selectedDate={selectedDate} professional={{ name: session.user.user_metadata?.full_name, email: session.user.email }} onEdit={(appointment) => setModal({ type: "finance", appointmentId: appointment.id })} />}
+            {activeTab === "acessos" && isOwner && <AccessView grants={accessGrants} busy={busy} onSave={saveAccessGrant} onRevoke={revokeAccess} />}
           </>
         )}
       </main>
@@ -458,8 +559,56 @@ function PatientsView({ view, setView, patients, search, setSearch, statusFilter
   </section>;
 }
 
-function FinanceView({ totals, appointments, patients, onEdit }) {
+function AccessView({ grants, busy, onSave, onRevoke }) {
+  const [form, setForm] = useState({ email: "", days: 3, notes: "" });
+  async function submit(event) {
+    event.preventDefault();
+    if (await onSave(form)) setForm({ email: "", days: 3, notes: "" });
+  }
+  return <div className="access-layout">
+    <section className="panel access-form-panel">
+      <header><h2>Liberar acesso</h2><p>Informe o mesmo e-mail que a pessoa usará para criar a conta.</p></header>
+      <form className="access-form" onSubmit={submit}>
+        <label>E-mail autorizado<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="cliente@exemplo.com" required /></label>
+        <label>Duração em dias<input type="number" min="1" max="365" value={form.days} onChange={(event) => setForm({ ...form, days: event.target.value })} required /></label>
+        <label>Observação<input value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Teste gratuito, plano mensal..." /></label>
+        <button className="primary-button" disabled={busy}><ShieldCheck size={17} />{busy ? "Liberando..." : "Liberar acesso"}</button>
+      </form>
+      <p className="access-hint"><strong>Teste gratuito:</strong> use 3 dias. Para uma assinatura mensal, use 30 dias e renove após a confirmação do pagamento.</p>
+    </section>
+    <section className="panel grants-panel">
+      <header><h2>Contas autorizadas</h2><p>{grants.length} {grants.length === 1 ? "liberação cadastrada" : "liberações cadastradas"}</p></header>
+      <div className="grants-head"><span>E-mail</span><span>Validade</span><span>Status</span><span>Ação</span></div>
+      {grants.length ? grants.map((grant) => {
+        const valid = grant.active && new Date(grant.expires_at) > new Date();
+        return <div className="grant-row" key={grant.id}><span><strong>{grant.email}</strong><small>{grant.notes || "Sem observação"}</small></span><span>{new Date(grant.expires_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span><em className={valid ? "active" : "expired"}>{valid ? "Ativo" : grant.active ? "Expirado" : "Bloqueado"}</em><div>{valid && <button className="secondary-button compact danger" disabled={busy} onClick={() => onRevoke(grant.id)}>Bloquear</button>}</div></div>;
+      }) : <div className="empty-state"><ShieldCheck size={28} /><h3>Nenhum acesso liberado</h3><p>O seu e-mail de proprietário sempre terá acesso.</p></div>}
+    </section>
+  </div>;
+}
+
+function FinanceView({ totals, appointments, patients, selectedDate, professional, onEdit }) {
+  const [reportMode, setReportMode] = useState("day");
+  const [reportDay, setReportDay] = useState(dateKey(selectedDate));
+  const [reportMonth, setReportMonth] = useState(dateKey(selectedDate).slice(0, 7));
+  const reportAppointments = appointments.filter((appointment) => reportMode === "day" ? dateKey(appointment.starts_at) === reportDay : dateKey(appointment.starts_at).startsWith(reportMonth));
+  const periodLabel = reportMode === "day"
+    ? `Diario - ${formatDate(reportDay)}`
+    : `Mensal - ${monthNames[Number(reportMonth.slice(5, 7)) - 1]} de ${reportMonth.slice(0, 4)}`;
+  async function downloadReport() {
+    const { generateFinancialReport } = await import("./lib/financialReport.js");
+    generateFinancialReport({ appointments: reportAppointments, patients, professional, periodLabel, fileLabel: reportMode === "day" ? reportDay : reportMonth });
+  }
   return <>
+    <section className="panel report-panel">
+      <div><h2>Relatório financeiro</h2><p>O PDF é gerado neste dispositivo e não envia os dados para terceiros.</p></div>
+      <div className="report-controls">
+        <div className="segmented"><button className={reportMode === "day" ? "active" : ""} onClick={() => setReportMode("day")}>Dia</button><button className={reportMode === "month" ? "active" : ""} onClick={() => setReportMode("month")}>Mês inteiro</button></div>
+        {reportMode === "day" ? <input aria-label="Dia do relatório" type="date" value={reportDay} onChange={(event) => setReportDay(event.target.value)} /> : <input aria-label="Mês do relatório" type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} />}
+        <button className="primary-button" onClick={downloadReport}><Download size={17} />Baixar PDF</button>
+      </div>
+      <small>{reportAppointments.length} {reportAppointments.length === 1 ? "lançamento será incluído" : "lançamentos serão incluídos"}</small>
+    </section>
     <section className="finance-summary">
       <div className="chart-card"><div className="donut" style={{ "--angle": `${totals.percent * 3.6}deg` }}><div><strong>{totals.percent}%</strong><small>recebido</small></div></div><div className="chart-legend"><h2>Visão geral</h2><p><span><i className="received" />Recebido</span><strong>{currency.format(totals.received)}</strong></p><p><span><i className="pending" />Pendente</span><strong>{currency.format(totals.pending)}</strong></p></div></div>
       <div className="metric-card"><span>Recebido</span><strong>{currency.format(totals.received)}</strong><small>Pagamentos confirmados</small></div>

@@ -1,4 +1,18 @@
 create extension if not exists pgcrypto;
+create extension if not exists citext;
+
+create table if not exists public.access_grants (
+  id uuid primary key default gen_random_uuid(),
+  email citext not null unique,
+  active boolean not null default true,
+  starts_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  notes text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (expires_at > starts_at)
+);
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -11,7 +25,9 @@ create table if not exists public.patients (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   full_name text not null,
+  patient_email text,
   guardian text,
+  guardian_contact text,
   insurance text not null default 'Particular',
   cid text,
   therapies text not null,
@@ -52,8 +68,58 @@ create index if not exists appointments_user_starts_idx on public.appointments(u
 create index if not exists appointments_patient_id_idx on public.appointments(patient_id);
 
 alter table public.profiles enable row level security;
+alter table public.access_grants enable row level security;
 alter table public.patients enable row level security;
 alter table public.appointments enable row level security;
+
+create or replace function public.is_platform_owner()
+returns boolean
+language sql
+stable
+security definer set search_path = ''
+as $$
+  select lower(coalesce((select auth.jwt() ->> 'email'), '')) = 'oliverziver@gmail.com';
+$$;
+
+create or replace function public.has_active_access()
+returns boolean
+language sql
+stable
+security definer set search_path = ''
+as $$
+  select public.is_platform_owner() or exists (
+    select 1
+    from public.access_grants
+    where lower(access_grants.email::text) = lower(coalesce((select auth.jwt() ->> 'email'), ''))
+      and access_grants.active
+      and access_grants.starts_at <= now()
+      and access_grants.expires_at > now()
+  );
+$$;
+
+grant execute on function public.is_platform_owner() to authenticated;
+grant execute on function public.has_active_access() to authenticated;
+grant select, insert, update, delete on public.access_grants to authenticated;
+
+drop policy if exists "access_grants_select" on public.access_grants;
+create policy "access_grants_select" on public.access_grants for select to authenticated
+using (
+  public.is_platform_owner()
+  or lower(email::text) = lower(coalesce((select auth.jwt() ->> 'email'), ''))
+);
+
+drop policy if exists "access_grants_insert_owner" on public.access_grants;
+create policy "access_grants_insert_owner" on public.access_grants for insert to authenticated
+with check (public.is_platform_owner() and created_by = (select auth.uid()));
+
+drop policy if exists "access_grants_update_owner" on public.access_grants;
+create policy "access_grants_update_owner" on public.access_grants for update to authenticated
+using (public.is_platform_owner())
+with check (public.is_platform_owner());
+
+drop policy if exists "access_grants_delete_owner" on public.access_grants;
+create policy "access_grants_delete_owner" on public.access_grants for delete to authenticated
+using (public.is_platform_owner());
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select to authenticated
@@ -65,28 +131,30 @@ using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
 
 drop policy if exists "patients_select_own" on public.patients;
 create policy "patients_select_own" on public.patients for select to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.has_active_access()));
 
 drop policy if exists "patients_insert_own" on public.patients;
 create policy "patients_insert_own" on public.patients for insert to authenticated
-with check ((select auth.uid()) = user_id);
+with check ((select auth.uid()) = user_id and (select public.has_active_access()));
 
 drop policy if exists "patients_update_own" on public.patients;
 create policy "patients_update_own" on public.patients for update to authenticated
-using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.has_active_access()))
+with check ((select auth.uid()) = user_id and (select public.has_active_access()));
 
 drop policy if exists "patients_delete_own" on public.patients;
 create policy "patients_delete_own" on public.patients for delete to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.has_active_access()));
 
 drop policy if exists "appointments_select_own" on public.appointments;
 create policy "appointments_select_own" on public.appointments for select to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.has_active_access()));
 
 drop policy if exists "appointments_insert_own" on public.appointments;
 create policy "appointments_insert_own" on public.appointments for insert to authenticated
 with check (
   (select auth.uid()) = user_id
+  and (select public.has_active_access())
   and exists (
     select 1 from public.patients
     where patients.id = patient_id and patients.user_id = (select auth.uid())
@@ -95,9 +163,10 @@ with check (
 
 drop policy if exists "appointments_update_own" on public.appointments;
 create policy "appointments_update_own" on public.appointments for update to authenticated
-using ((select auth.uid()) = user_id)
+using ((select auth.uid()) = user_id and (select public.has_active_access()))
 with check (
   (select auth.uid()) = user_id
+  and (select public.has_active_access())
   and exists (
     select 1 from public.patients
     where patients.id = patient_id and patients.user_id = (select auth.uid())
@@ -106,7 +175,7 @@ with check (
 
 drop policy if exists "appointments_delete_own" on public.appointments;
 create policy "appointments_delete_own" on public.appointments for delete to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.has_active_access()));
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -137,6 +206,10 @@ $$;
 
 drop trigger if exists patients_set_updated_at on public.patients;
 create trigger patients_set_updated_at before update on public.patients
+for each row execute procedure public.set_updated_at();
+
+drop trigger if exists access_grants_set_updated_at on public.access_grants;
+create trigger access_grants_set_updated_at before update on public.access_grants
 for each row execute procedure public.set_updated_at();
 
 drop trigger if exists appointments_set_updated_at on public.appointments;
