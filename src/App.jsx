@@ -77,9 +77,13 @@ function emptyPatient() {
 
 function Brand() {
   return (
-    <div className="brand">
-      <div className="brand-mark">FM</div>
-      <div><strong>Fluxa Med</strong><span>Gestão para terapeutas</span></div>
+    <div className="brand" aria-label="Clic Med">
+      <div>
+        <strong className="wordmark">
+          <span>Clic</span><span>Med</span>
+        </strong>
+        <span>Gestão para terapeutas</span>
+      </div>
     </div>
   );
 }
@@ -127,7 +131,7 @@ function AuthScreen({ onAuthenticated }) {
         <div className="auth-form-wrap">
           <div className="auth-form-head">
             <h2>{mode === "login" ? "Acesse sua conta" : "Crie sua conta"}</h2>
-            <p>{mode === "login" ? "Entre para continuar no Fluxa Med." : "Comece a organizar seus atendimentos."}</p>
+            <p>{mode === "login" ? "Entre para continuar no Clic Med." : "Comece a organizar seus atendimentos."}</p>
           </div>
           <div className="auth-switch" role="tablist">
             <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>

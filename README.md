@@ -1,10 +1,10 @@
-# Fluxa Med
+# Clic Med
 
 MVP de gestão para psicólogos e terapeutas autônomos. Inclui agenda, cadastro de pacientes, prontuário administrativo, controle financeiro e autenticação por usuário.
 
 ## Aplicação
 
-[Acessar o Fluxa Med](https://fluxa-med.vercel.app)
+[Acessar o Clic Med](https://clic-med.vercel.app)
 
 ## Desenvolvimento
 
