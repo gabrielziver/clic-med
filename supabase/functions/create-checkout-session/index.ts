@@ -15,11 +15,11 @@ Deno.serve(async (request) => {
 
     const { data: existing } = await supabaseAdmin
       .from("stripe_subscriptions")
-      .select("stripe_customer_id, status")
+      .select("stripe_customer_id, status, livemode")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    let customerId = existing?.stripe_customer_id || null;
+    let customerId = existing?.livemode ? existing.stripe_customer_id : null;
     if (customerId) {
       const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
       const current = subscriptions.data.find((item) => ["trialing", "active", "past_due", "unpaid", "paused", "incomplete"].includes(item.status));
@@ -40,7 +40,14 @@ Deno.serve(async (request) => {
       user_id: user.id,
       email: user.email.toLowerCase(),
       stripe_customer_id: customerId,
+      stripe_subscription_id: null,
+      stripe_price_id: null,
+      livemode: true,
       status: "checkout_pending",
+      current_period_end: null,
+      trial_end: null,
+      cancel_at_period_end: false,
+      last_event_created: 0,
     }, { onConflict: "user_id" });
 
     const checkout = await stripe.checkout.sessions.create({

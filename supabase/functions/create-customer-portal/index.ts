@@ -16,6 +16,7 @@ Deno.serve(async (request) => {
       .from("stripe_subscriptions")
       .select("stripe_customer_id")
       .eq("user_id", user.id)
+      .eq("livemode", true)
       .maybeSingle();
     if (!subscription?.stripe_customer_id) return json({ error: "Nenhuma assinatura encontrada." }, 404);
 

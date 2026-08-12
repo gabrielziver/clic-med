@@ -21,6 +21,7 @@ create table if not exists public.stripe_subscriptions (
   stripe_customer_id text unique,
   stripe_subscription_id text unique,
   stripe_price_id text,
+  livemode boolean not null default false,
   status text not null default 'checkout_pending',
   current_period_end timestamptz,
   trial_end timestamptz,
@@ -119,6 +120,7 @@ as $$
       select 1
       from public.stripe_subscriptions
       where stripe_subscriptions.user_id = (select auth.uid())
+        and stripe_subscriptions.livemode
         and stripe_subscriptions.status in ('trialing', 'active')
         and stripe_subscriptions.current_period_end > now()
     );
