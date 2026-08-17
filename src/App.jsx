@@ -26,6 +26,9 @@ const OWNER_EMAIL = "oliverziver@gmail.com";
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const shortWeekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const AGENDA_START_HOUR = 8;
+const AGENDA_END_HOUR = 18;
+const AGENDA_HOUR_HEIGHT = 94;
 const statusInfo = {
   presente: { label: "Presente", className: "present" },
   faltou_assinou: { label: "Faltou, mas terá reembolso", className: "charged-absence" },
@@ -327,7 +330,7 @@ function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar
           <div className="schedule-head"><span>Data</span><span>Horário</span><span>Ação</span></div>
           {appointmentDrafts.map((draft) => <div className="schedule-row" key={draft.id}>
             <label><span className="sr-only">Data da sessão</span><input type="date" value={draft.date} onChange={(event) => updateDraft(draft.id, "date", event.target.value)} required /></label>
-            <label><span className="sr-only">Horário da sessão</span><input type="time" min="08:00" max="17:00" step="3600" value={draft.time} onChange={(event) => updateDraft(draft.id, "time", event.target.value)} required /></label>
+            <label><span className="sr-only">Horário da sessão</span><input type="time" min="08:00" max="17:00" step="60" value={draft.time} onChange={(event) => updateDraft(draft.id, "time", event.target.value)} required /></label>
             <button type="button" className="icon-button danger" aria-label="Remover horário" disabled={appointmentDrafts.length === 1} onClick={() => setAppointmentDrafts((current) => current.filter((item) => item.id !== draft.id))}><Trash2 size={17} /></button>
           </div>)}
           <button type="button" className="secondary-button add-schedule" onClick={() => setAppointmentDrafts((current) => [...current, nextAppointmentDraft(current[current.length - 1])])}><Plus size={17} />Adicionar outra data e horário</button>
@@ -671,7 +674,13 @@ function App() {
 }
 
 function AgendaView({ appointments, daily, patients, selectedDate, setSelectedDate, calendarOpen, setCalendarOpen, openAppointment }) {
-  const hours = Array.from({ length: 10 }, (_, index) => index + 8);
+  const hours = Array.from({ length: AGENDA_END_HOUR - AGENDA_START_HOUR }, (_, index) => index + AGENDA_START_HOUR);
+  const visibleAppointments = daily
+    .filter((appointment) => {
+      const start = new Date(appointment.starts_at);
+      return start.getHours() >= AGENDA_START_HOUR && start.getHours() < AGENDA_END_HOUR;
+    })
+    .sort((first, second) => new Date(first.starts_at) - new Date(second.starts_at));
   return (
     <section className="panel agenda-panel">
       <div className="agenda-toolbar">
@@ -683,11 +692,19 @@ function AgendaView({ appointments, daily, patients, selectedDate, setSelectedDa
       </div>
       <div className="agenda-legend">{Object.entries(statusInfo).map(([key, value]) => <span key={key}><i className={value.className} />{value.label}</span>)}</div>
       <div className="timeline-scroll"><div className="timeline">
-        {hours.map((hour) => {
-          const appointment = daily.find((item) => new Date(item.starts_at).getHours() === hour);
-          const patient = appointment ? patients.find((item) => item.id === appointment.patient_id) : null;
-          return <div className="time-slot" key={hour}><time>{String(hour).padStart(2, "0")}:00</time>{appointment ? <button className={`appointment-card ${statusInfo[appointment.status]?.className}`} onClick={() => openAppointment(appointment)}><span><strong>{patient?.full_name || "Paciente"}</strong><b>{timeOf(appointment.starts_at)} - {timeOf(appointment.ends_at)}</b></span><span><small>{appointment.procedure}</small><em>{statusInfo[appointment.status]?.label}</em></span></button> : <div className="empty-slot">Horário disponível</div>}</div>;
-        })}
+        {hours.map((hour) => <div className="time-slot" key={hour}><time>{String(hour).padStart(2, "0")}:00</time><div className="empty-slot">Horário disponível</div></div>)}
+        <div className="appointment-layer">
+          {visibleAppointments.map((appointment) => {
+            const start = new Date(appointment.starts_at);
+            const end = new Date(appointment.ends_at);
+            const patient = patients.find((item) => item.id === appointment.patient_id);
+            const startMinutes = (start.getHours() - AGENDA_START_HOUR) * 60 + start.getMinutes();
+            const durationMinutes = Math.max(30, Math.round((end - start) / 60000));
+            const top = (startMinutes / 60) * AGENDA_HOUR_HEIGHT;
+            const height = Math.max(74, (durationMinutes / 60) * AGENDA_HOUR_HEIGHT - 8);
+            return <button style={{ top: `${top}px`, height: `${height}px` }} className={`appointment-card ${statusInfo[appointment.status]?.className}`} key={appointment.id} onClick={() => openAppointment(appointment)}><span><strong>{patient?.full_name || "Paciente"}</strong><b>{timeOf(appointment.starts_at)} - {timeOf(appointment.ends_at)}</b></span><span><small>{appointment.procedure}</small><em>{statusInfo[appointment.status]?.label}</em></span></button>;
+          })}
+        </div>
         <div className="timeline-end">18:00</div>
       </div></div>
     </section>
@@ -805,7 +822,7 @@ function PatientModal({ patient, appointment, busy, onClose, onSave, onStatus })
 
 function NewAppointmentModal({ patients, selectedDate, busy, onClose, onSave }) {
   const [form, setForm] = useState({ patient_id: patients[0]?.id || "", date: dateKey(selectedDate), time: "09:00", procedure: "Psicoterapia individual", unit: "" });
-  return <Modal title="Nova sessão" subtitle="A duração padrão é de uma hora." onClose={onClose}>{patients.length ? <form className="compact-form" onSubmit={(e) => { e.preventDefault(); onSave(form); }}><label>Paciente<select value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.target.value })}>{patients.map((patient) => <option value={patient.id} key={patient.id}>{patient.full_name}</option>)}</select></label><div className="form-grid"><label>Data<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required /></label><label>Horário<select value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })}>{Array.from({ length: 10 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`).map((time) => <option key={time}>{time}</option>)}</select></label></div><label>Procedimento<input value={form.procedure} onChange={(e) => setForm({ ...form, procedure: e.target.value })} required /></label><label>Local / unidade<input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></label><div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={busy}>{busy ? "Salvando..." : "Adicionar à agenda"}</button></div></form> : <div className="empty-state"><UsersRound size={28} /><h3>Cadastre um paciente primeiro</h3><button className="secondary-button" onClick={onClose}>Fechar</button></div>}</Modal>;
+  return <Modal title="Nova sessão" subtitle="Escolha a hora e os minutos. A duração padrão é de uma hora." onClose={onClose}>{patients.length ? <form className="compact-form" onSubmit={(e) => { e.preventDefault(); onSave(form); }}><label>Paciente<select value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.target.value })}>{patients.map((patient) => <option value={patient.id} key={patient.id}>{patient.full_name}</option>)}</select></label><div className="form-grid"><label>Data<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required /></label><label>Horário<input type="time" min="08:00" max="17:00" step="60" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} required /></label></div><label>Procedimento<input value={form.procedure} onChange={(e) => setForm({ ...form, procedure: e.target.value })} required /></label><label>Local / unidade<input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></label><div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={busy}>{busy ? "Salvando..." : "Adicionar à agenda"}</button></div></form> : <div className="empty-state"><UsersRound size={28} /><h3>Cadastre um paciente primeiro</h3><button className="secondary-button" onClick={onClose}>Fechar</button></div>}</Modal>;
 }
 
 function FinanceModal({ appointment, patient, busy, onClose, onSave }) {
