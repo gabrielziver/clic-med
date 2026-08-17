@@ -6,5 +6,8 @@ verify_jwt = true
 [functions.create-customer-portal]
 verify_jwt = true
 
+[functions.cancel-subscription]
+verify_jwt = true
+
 [functions.stripe-webhook]
 verify_jwt = false

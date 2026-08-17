@@ -8,7 +8,6 @@ import {
   Clock3,
   CreditCard,
   Download,
-  ExternalLink,
   LogOut,
   Plus,
   RefreshCw,
@@ -475,6 +474,33 @@ function App() {
     window.location.assign(data.url);
   }
 
+  async function updateProfileName(fullName) {
+    const normalizedName = fullName.trim();
+    if (!normalizedName) return false;
+    setBusy(true);
+    setError("");
+    const { data, error: profileError } = await supabase.auth.updateUser({ data: { full_name: normalizedName } });
+    setBusy(false);
+    if (profileError) { setError(profileError.message); return false; }
+    setSession((current) => current ? { ...current, user: data.user } : current);
+    setToast("Nome atualizado.");
+    return true;
+  }
+
+  async function cancelSubscription() {
+    setBillingBusy(true);
+    setError("");
+    const { data, error: functionError } = await supabase.functions.invoke("cancel-subscription", { body: {} });
+    setBillingBusy(false);
+    if (functionError || !data?.cancel_at_period_end) {
+      setError(data?.error || functionError?.message || "Não foi possível cancelar a assinatura.");
+      return false;
+    }
+    setToast("Cancelamento agendado. Seu acesso continua até o fim do período pago.");
+    await checkAccess(session);
+    return true;
+  }
+
   async function saveAccessGrant({ email, days, notes }) {
     setBusy(true);
     setError("");
@@ -629,16 +655,16 @@ function App() {
           <button className={activeTab === "agenda" ? "active" : ""} onClick={() => setActiveTab("agenda")}><CalendarDays size={18} />Agenda</button>
           <button className={activeTab === "pacientes" ? "active" : ""} onClick={() => setActiveTab("pacientes")}><UsersRound size={18} />Pacientes</button>
           <button className={activeTab === "financeiro" ? "active" : ""} onClick={() => setActiveTab("financeiro")}><WalletCards size={18} />Financeiro</button>
-          <button className={activeTab === "assinatura" ? "active" : ""} onClick={() => setActiveTab("assinatura")}><CreditCard size={18} />Assinatura</button>
+          <button className={activeTab === "perfil" ? "active" : ""} onClick={() => setActiveTab("perfil")}><UserRound size={18} />Perfil</button>
           {isOwner && <button className={activeTab === "acessos" ? "active" : ""} onClick={() => setActiveTab("acessos")}><ShieldCheck size={18} />Acessos</button>}
         </nav>
         <div className="sidebar-metric"><span>Entradas</span><strong>{currency.format(totals.received)}</strong><small>{currency.format(totals.pending)} pendente</small></div>
-        <button className="account-button" onClick={() => supabase.auth.signOut()}><UserRound size={18} /><span>{session.user.email}</span><LogOut size={17} /></button>
+        <button className={`account-button ${activeTab === "perfil" ? "active" : ""}`} onClick={() => setActiveTab("perfil")}><UserRound size={18} /><span><strong>{session.user.user_metadata?.full_name || "Meu perfil"}</strong><small>{session.user.email}</small></span><ChevronRight size={17} /></button>
       </aside>
 
       <main className="workspace">
         <header className="topbar">
-          <div><p className="eyebrow">{activeTab === "agenda" ? longDate(selectedDate) : activeTab === "pacientes" ? `${patients.filter((p) => p.status === "Ativo").length} pacientes ativos` : activeTab === "financeiro" ? `${monthNames[selectedDate.getMonth()]} de ${selectedDate.getFullYear()}` : activeTab === "assinatura" ? "Plano e cobrança" : "Administração da assinatura"}</p><h1>{activeTab === "agenda" ? "Agenda do dia" : activeTab === "pacientes" ? "Cadastro de pacientes" : activeTab === "financeiro" ? "Financeiro geral" : activeTab === "assinatura" ? "Minha assinatura" : "Controle de acessos"}</h1></div>
+          <div><p className="eyebrow">{activeTab === "agenda" ? longDate(selectedDate) : activeTab === "pacientes" ? `${patients.filter((p) => p.status === "Ativo").length} pacientes ativos` : activeTab === "financeiro" ? `${monthNames[selectedDate.getMonth()]} de ${selectedDate.getFullYear()}` : activeTab === "perfil" ? "Conta e assinatura" : "Administração da assinatura"}</p><h1>{activeTab === "agenda" ? "Agenda do dia" : activeTab === "pacientes" ? "Cadastro de pacientes" : activeTab === "financeiro" ? "Financeiro geral" : activeTab === "perfil" ? "Meu perfil" : "Controle de acessos"}</h1></div>
           {(activeTab === "agenda" || activeTab === "pacientes") && <button className="primary-button" onClick={() => activeTab === "pacientes" ? setPatientView("add") : setModal({ type: "appointment-new" })}><Plus size={18} />{activeTab === "pacientes" ? "Novo paciente" : "Nova sessão"}</button>}
         </header>
 
@@ -646,7 +672,7 @@ function App() {
           <button className={activeTab === "agenda" ? "active" : ""} onClick={() => setActiveTab("agenda")}>Agenda</button>
           <button className={activeTab === "pacientes" ? "active" : ""} onClick={() => setActiveTab("pacientes")}>Pacientes</button>
           <button className={activeTab === "financeiro" ? "active" : ""} onClick={() => setActiveTab("financeiro")}>Financeiro</button>
-          <button className={activeTab === "assinatura" ? "active" : ""} onClick={() => setActiveTab("assinatura")}>Assinatura</button>
+          <button className={activeTab === "perfil" ? "active" : ""} onClick={() => setActiveTab("perfil")}>Perfil</button>
           {isOwner && <button className={activeTab === "acessos" ? "active" : ""} onClick={() => setActiveTab("acessos")}>Acessos</button>}
         </nav>
 
@@ -656,7 +682,7 @@ function App() {
             {activeTab === "agenda" && <AgendaView appointments={appointments} daily={dailyAppointments} patients={patients} selectedDate={selectedDate} setSelectedDate={setSelectedDate} calendarOpen={calendarOpen} setCalendarOpen={setCalendarOpen} openAppointment={(appointment) => setModal({ type: "patient", patientId: appointment.patient_id, appointmentId: appointment.id })} />}
             {activeTab === "pacientes" && <PatientsView view={patientView} setView={setPatientView} patients={filteredPatients} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} insuranceFilter={insuranceFilter} setInsuranceFilter={setInsuranceFilter} onOpen={(patient) => setModal({ type: "patient", patientId: patient.id })} onSave={(values) => savePatient(values)} busy={busy} defaultAppointmentDate={dateKey(selectedDate)} defaultAppointmentTime={defaultAppointmentTime} />}
             {activeTab === "financeiro" && <FinanceView totals={totals} appointments={appointments} patients={patients} selectedDate={selectedDate} professional={{ name: session.user.user_metadata?.full_name, email: session.user.email }} onEdit={(appointment) => setModal({ type: "finance", appointmentId: appointment.id })} />}
-            {activeTab === "assinatura" && <SubscriptionView subscription={currentSubscription} isOwner={isOwner} busy={billingBusy} onSubscribe={() => openBilling("create-checkout-session")} onManage={() => openBilling("create-customer-portal")} />}
+            {activeTab === "perfil" && <ProfileView user={session.user} subscription={currentSubscription} grant={currentGrant} isOwner={isOwner} busy={busy || billingBusy} onSaveName={updateProfileName} onCancelSubscription={cancelSubscription} onLogout={() => supabase.auth.signOut()} />}
             {activeTab === "acessos" && isOwner && <AccessView grants={accessGrants} subscriptions={stripeSubscriptions} busy={busy} onSave={saveAccessGrant} onRevoke={revokeAccess} />}
           </>
         )}
@@ -722,27 +748,44 @@ function PatientsView({ view, setView, patients, search, setSearch, statusFilter
   </section>;
 }
 
-function SubscriptionView({ subscription, isOwner, busy, onSubscribe, onManage }) {
+function ProfileView({ user, subscription, grant, isOwner, busy, onSaveName, onCancelSubscription, onLogout }) {
+  const [name, setName] = useState(user.user_metadata?.full_name || "");
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const active = subscriptionActive(subscription);
-  const canManage = subscriptionManageable(subscription);
-  const status = isOwner ? "Proprietário" : subscriptionLabels[subscription?.status] || "Sem assinatura";
+  const status = isOwner ? "Proprietário" : subscriptionLabels[subscription?.status] || "Acesso temporário";
   const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("pt-BR") : "—";
-  return <section className="panel subscription-panel">
-    <div className="subscription-copy">
-      <span className="subscription-kicker">Clic Med Mensal</span>
-      <h2>Um plano simples para organizar seu consultório.</h2>
-      <p>Agenda, pacientes, prontuários administrativos, financeiro e relatórios em PDF.</p>
-      <div className="subscription-price"><strong>R$ 67,00</strong><span>por mês</span></div>
-      <div className="subscription-features"><span><ShieldCheck size={17} />3 dias de teste gratuito</span><span><RefreshCw size={17} />Renovação mensal automática</span><span><CreditCard size={17} />Cobrança segura pela Stripe</span></div>
-    </div>
-    <div className="subscription-status-card">
-      <span>Status da conta</span>
-      <strong className={active || isOwner ? "active" : "inactive"}>{status}</strong>
-      <dl><div><dt>Próxima renovação</dt><dd>{isOwner ? "Acesso permanente" : periodEnd}</dd></div><div><dt>Cancelamento agendado</dt><dd>{subscription?.cancel_at_period_end ? "Sim" : "Não"}</dd></div></dl>
-      {!isOwner && <button className={canManage ? "secondary-button wide" : "primary-button wide"} disabled={busy} onClick={canManage ? onManage : onSubscribe}>{canManage ? <ExternalLink size={17} /> : <CreditCard size={17} />}{busy ? "Abrindo..." : canManage ? "Gerenciar na Stripe" : "Começar teste gratuito"}</button>}
-      {isOwner && <p className="owner-plan-note">Sua conta de proprietário não depende de cobrança e permanece sempre ativa.</p>}
-    </div>
-  </section>;
+  const grantEnd = grant?.expires_at ? new Date(grant.expires_at).toLocaleDateString("pt-BR") : "—";
+  const canCancel = !isOwner && active && Boolean(subscription?.stripe_subscription_id) && !subscription?.cancel_at_period_end;
+
+  async function submit(event) {
+    event.preventDefault();
+    await onSaveName(name);
+  }
+
+  async function confirmCancellation() {
+    if (await onCancelSubscription()) setConfirmCancel(false);
+  }
+
+  return <div className="profile-layout">
+    <section className="panel profile-details">
+      <header><div className="profile-avatar"><UserRound size={24} /></div><div><h2>Dados da conta</h2><p>Informações usadas na sua identificação dentro do Clic Med.</p></div></header>
+      <form onSubmit={submit}>
+        <label>Nome completo<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
+        <label>E-mail<input value={user.email || ""} readOnly aria-readonly="true" /></label>
+        <button className="primary-button" disabled={busy || name.trim() === (user.user_metadata?.full_name || "").trim()}>{busy ? "Salvando..." : "Salvar nome"}</button>
+      </form>
+      <button className="secondary-button profile-logout" onClick={onLogout}><LogOut size={17} />Sair da conta</button>
+    </section>
+
+    <section className="panel profile-plan">
+      <header><span>Plano atual</span><strong className={active || isOwner || grant ? "active" : "inactive"}>{status}</strong></header>
+      <div><span className="subscription-kicker">{isOwner ? "Clic Med Proprietário" : active ? "Clic Med Mensal" : "Acesso Clic Med"}</span><h2>{isOwner ? "Acesso permanente" : active ? "R$ 67,00 por mês" : "Acesso temporário"}</h2><p>{isOwner ? "Sua conta administrativa não depende de cobrança." : active ? "Agenda, pacientes, financeiro e relatórios em um único plano." : `Acesso liberado até ${grantEnd}.`}</p></div>
+      <dl><div><dt>{subscription?.cancel_at_period_end ? "Acesso disponível até" : "Próxima renovação"}</dt><dd>{isOwner ? "Permanente" : active ? periodEnd : grantEnd}</dd></div><div><dt>Cancelamento</dt><dd>{subscription?.cancel_at_period_end ? "Agendado" : "Não agendado"}</dd></div></dl>
+      {subscription?.cancel_at_period_end && <p className="cancellation-note">A assinatura não será renovada. Seu acesso continua normalmente até {periodEnd}.</p>}
+      {canCancel && !confirmCancel && <button className="secondary-button danger wide" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar assinatura</button>}
+      {confirmCancel && <div className="cancel-confirm"><strong>Confirmar cancelamento?</strong><p>O plano será encerrado em {periodEnd}. Não haverá reembolso, e o acesso continuará até essa data.</p><div><button className="secondary-button" disabled={busy} onClick={() => setConfirmCancel(false)}>Voltar</button><button className="primary-button danger" disabled={busy} onClick={confirmCancellation}>{busy ? "Cancelando..." : "Confirmar cancelamento"}</button></div></div>}
+    </section>
+  </div>;
 }
 
 function AccessView({ grants, subscriptions, busy, onSave, onRevoke }) {
