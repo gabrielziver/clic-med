@@ -21,13 +21,21 @@ Deno.serve(async (request) => {
 
     let customerId = existing?.livemode ? existing.stripe_customer_id : null;
     if (customerId) {
-      const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
-      const current = subscriptions.data.find((item) => ["trialing", "active", "past_due", "unpaid", "paused", "incomplete"].includes(item.status));
-      if (current) {
-        const portal = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: `${appUrl}/?billing=return` });
-        return json({ url: portal.url, destination: "portal" });
+      try {
+        const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
+        const current = subscriptions.data.find((item) => ["trialing", "active", "past_due", "unpaid", "paused", "incomplete"].includes(item.status));
+        if (current) {
+          const portal = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: `${appUrl}/?billing=return` });
+          return json({ url: portal.url, destination: "portal" });
+        }
+      } catch (error) {
+        const stripeError = error as { code?: string };
+        if (stripeError.code !== "resource_missing") throw error;
+        customerId = null;
       }
-    } else {
+    }
+
+    if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
         name: user.user_metadata?.full_name || undefined,
