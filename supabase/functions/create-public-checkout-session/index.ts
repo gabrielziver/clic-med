@@ -18,7 +18,7 @@ Deno.serve(async (request) => {
       line_items: [{ price: priceId, quantity: 1 }],
       payment_method_collection: "always",
       locale: "pt-BR",
-      success_url: `${appUrl}/app?checkout=success&cadastro=1&origem=${encodeURIComponent(origin)}`,
+      success_url: `${appUrl}/app?checkout=success&origem=${encodeURIComponent(origin)}`,
       cancel_url: `${appUrl}/conheca?checkout=canceled&origem=${encodeURIComponent(origin)}`,
       metadata: { signup_origin: origin },
       subscription_data: {

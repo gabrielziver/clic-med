@@ -156,7 +156,7 @@ function Brand() {
 
 function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "direto" }) {
   const checkoutSuccess = new URLSearchParams(window.location.search).get("checkout") === "success";
-  const [mode, setMode] = useState(initialMode);
+  const [mode, setMode] = useState(checkoutSuccess ? "login" : initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -173,6 +173,12 @@ function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "di
     setBusy(false);
     if (result.error) {
       setMessage(result.error.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : result.error.message);
+      return;
+    }
+    if (mode === "signup" && Array.isArray(result.data.user?.identities) && result.data.user.identities.length === 0) {
+      setMode("login");
+      setPassword("");
+      setMessage("Este e-mail já está cadastrado. Entre com a senha da sua conta para continuar.");
       return;
     }
     if (result.data.session) onAuthenticated(result.data.session);
@@ -197,8 +203,9 @@ function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "di
         </div>
         <div className="auth-form-wrap">
           <div className="auth-form-head">
-            <h2>{mode === "login" ? "Acesse sua conta" : checkoutSuccess ? "Crie sua conta para ativar o teste" : "Crie sua conta"}</h2>
-            <p>{mode === "login" ? "Entre para continuar no Clic Med." : checkoutSuccess ? "Use o mesmo e-mail informado no checkout da Stripe." : "Comece a organizar seus atendimentos."}</p>
+            <h2>{checkoutSuccess && mode === "login" ? "Pagamento concluído. Entre na sua conta" : mode === "login" ? "Acesse sua conta" : checkoutSuccess ? "Crie seu primeiro acesso" : "Crie sua conta"}</h2>
+            <p>{checkoutSuccess ? "Use o mesmo e-mail informado no checkout da Stripe." : mode === "login" ? "Entre para continuar no Clic Med." : "Comece a organizar seus atendimentos."}</p>
+            {checkoutSuccess && <div className="checkout-success-notice"><CircleDollarSign size={18} /><span><strong>Assinatura localizada</strong><small>Já tinha cadastro? Entre normalmente. É seu primeiro acesso? Escolha Criar conta.</small></span></div>}
           </div>
           <div className="auth-switch" role="tablist">
             <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>

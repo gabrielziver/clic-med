@@ -71,6 +71,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shado
 .auth-points span { align-items: center; color: #e6eef9; display: flex; gap: 10px; }
 .auth-form-wrap { align-self: center; padding: 48px; }
 .auth-form-head p { color: var(--muted); margin-bottom: 26px; }
+.checkout-success-notice { align-items: flex-start; background: #eefbf5; border: 1px solid #bce8d2; border-radius: 7px; color: #137653; display: flex; gap: 10px; margin: -10px 0 22px; padding: 12px; }
+.checkout-success-notice svg { flex: 0 0 auto; margin-top: 1px; }
+.checkout-success-notice span { display: grid; gap: 3px; }
+.checkout-success-notice strong { font-size: 14px; }
+.checkout-success-notice small { color: #3e6c5c; line-height: 1.4; }
 .auth-switch { background: var(--soft); border: 1px solid var(--line); border-radius: 7px; display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 22px; padding: 4px; }
 .auth-switch button { background: transparent; border: 0; border-radius: 5px; color: var(--muted); min-height: 38px; }
 .auth-switch button.active { background: var(--surface); box-shadow: 0 2px 8px rgba(20, 38, 65, .08); color: var(--navy); font-weight: 800; }
