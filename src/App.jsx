@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
+import { LandingPage, QuizPage } from "./Marketing.jsx";
 
 const OWNER_EMAIL = "oliverziver@gmail.com";
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -153,8 +154,8 @@ function Brand() {
   );
 }
 
-function AuthScreen({ onAuthenticated }) {
-  const [mode, setMode] = useState("login");
+function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "direto" }) {
+  const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -167,7 +168,7 @@ function AuthScreen({ onAuthenticated }) {
     setMessage("");
     const result = mode === "login"
       ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password, options: { data: { full_name: name.trim() } } });
+      : await supabase.auth.signUp({ email, password, options: { data: { full_name: name.trim(), signup_origin: signupOrigin } } });
     setBusy(false);
     if (result.error) {
       setMessage(result.error.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : result.error.message);
@@ -350,7 +351,7 @@ function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar
   );
 }
 
-function App() {
+function DashboardApp() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [accessLoading, setAccessLoading] = useState(false);
@@ -640,7 +641,10 @@ function App() {
 
   if (!isSupabaseConfigured) return <main className="setup-page"><section><Brand /><h1>Conecte o banco para iniciar</h1><p>As variáveis do Supabase ainda não foram configuradas.</p><code>VITE_SUPABASE_URL</code><code>VITE_SUPABASE_ANON_KEY</code></section></main>;
   if (authLoading) return <main className="loading-page"><Brand /><span className="spinner" /></main>;
-  if (!session) return <AuthScreen onAuthenticated={setSession} />;
+  if (!session) {
+    const params = new URLSearchParams(window.location.search);
+    return <AuthScreen onAuthenticated={setSession} initialMode={params.get("cadastro") === "1" ? "signup" : "login"} signupOrigin={params.get("origem") || "direto"} />;
+  }
   if (accessLoading) return <main className="loading-page"><Brand /><span className="spinner" /></main>;
   if (!accessAllowed) return <AccessScreen email={session.user.email} grant={currentGrant} subscription={currentSubscription} busy={billingBusy} onSubscribe={() => openBilling("create-checkout-session")} onManage={() => openBilling("create-customer-portal")} onRefresh={() => checkAccess(session)} onLogout={() => supabase.auth.signOut()} />;
 
@@ -880,4 +884,9 @@ function FinanceModal({ appointment, patient, busy, onClose, onSave }) {
   return <Modal title="Editar lançamento" subtitle={patient?.full_name} onClose={onClose}><form className="compact-form" onSubmit={submit}><div className="form-grid"><label>Data da sessão<input type="date" value={form.session_date} onChange={(e) => setForm({ ...form, session_date: e.target.value })} required /></label><label>Valor<input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></label><label>Situação<select value={form.payment_status} onChange={(e) => setForm({ ...form, payment_status: e.target.value, paid_on: e.target.value === "Pago" ? form.paid_on || dateKey(new Date()) : "" })}><option>Pago</option><option>Pendente</option><option>Cancelado</option></select></label><label>Data do pagamento<input type="date" disabled={form.payment_status !== "Pago"} required={form.payment_status === "Pago"} value={form.paid_on} onChange={(e) => setForm({ ...form, paid_on: e.target.value })} /></label></div><div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={busy}>{busy ? "Salvando..." : "Salvar alterações"}</button></div></form></Modal>;
 }
 
-export default App;
+export default function App() {
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  if (path === "/conheca") return <LandingPage />;
+  if (path === "/diagnostico") return <QuizPage />;
+  return <DashboardApp />;
+}
