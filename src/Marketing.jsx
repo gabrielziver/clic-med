@@ -8,7 +8,12 @@ import {
   CircleCheck,
   Clock3,
   CreditCard,
+  Download,
   FileText,
+  Pause,
+  Play,
+  Plus,
+  Search,
   ShieldCheck,
   UserRound,
   UsersRound,
@@ -134,6 +139,19 @@ const faqItems = [
   { question: "Consigo baixar um relatório financeiro?", answer: "Sim. O financeiro permite gerar relatórios em PDF por um dia escolhido ou pelo mês completo." },
 ];
 
+const productSlides = [
+  { id: "agenda", label: "Agenda", description: "Horários e sessões do dia" },
+  { id: "patients", label: "Pacientes", description: "Cadastro e prontuário conectados" },
+  { id: "finance", label: "Financeiro", description: "Recebimentos e visão do mês" },
+];
+
+const financePreviewRows = [
+  { patient: "Camila Andrade", date: "05 ago 2026", status: "Pago", value: "R$ 480,00" },
+  { patient: "Lucas Martins", date: "08 ago 2026", status: "Pago", value: "R$ 720,00" },
+  { patient: "Fernanda Lima", date: "12 ago 2026", status: "Pendente", value: "R$ 560,00" },
+  { patient: "Rafael Nogueira", date: "15 ago 2026", status: "Pago", value: "R$ 640,00" },
+];
+
 function setPageMetadata(title, description) {
   document.title = title;
   const meta = document.querySelector('meta[name="description"]');
@@ -171,30 +189,114 @@ function MarketingHeader({ compact = false }) {
   </header>;
 }
 
-export function ProductPreview({ condensed = false }) {
-  return <div className={`public-product-preview ${condensed ? "condensed" : ""}`} aria-label="Demonstração da agenda do Clic Med">
+function PreviewAgenda() {
+  return <>
+    <div className="preview-toolbar"><span><b>Minha agenda</b><small>3 sessões agendadas</small></span><button><CalendarDays size={15} />17 ago 2026</button></div>
+    <div className="preview-legend"><span><i className="green" />Presente</span><span><i className="blue" />Reembolso</span><span><i className="red" />Não compareceu</span></div>
+    <div className="preview-schedule">
+      <time>08:00</time><div className="preview-empty">Horário disponível</div>
+      <time>09:00</time><div className="preview-session green"><span><b>Camila Andrade</b><small>Psicoterapia individual</small></span><em>09:00 - 10:00</em></div>
+      <time>10:00</time><div className="preview-session blue"><span><b>Lucas Martins</b><small>Psicoterapia individual</small></span><em>10:25 - 11:25</em></div>
+      <time>11:00</time><div className="preview-empty">Horário disponível</div>
+      <time>12:00</time><div className="preview-session violet"><span><b>Fernanda Lima</b><small>Acompanhamento terapêutico</small></span><em>12:00 - 13:00</em></div>
+    </div>
+  </>;
+}
+
+function PreviewPatients() {
+  return <div className="preview-patient-layout">
+    <div className="preview-patient-form">
+      <div className="preview-panel-heading"><span><b>Dados do paciente</b><small>Informações administrativas e de contato</small></span><span className="preview-step">1 de 2</span></div>
+      <div className="preview-form-grid">
+        <label className="wide"><span>Nome completo</span><strong>Beatriz Almeida</strong></label>
+        <label><span>E-mail</span><strong>beatriz@email.com</strong></label>
+        <label><span>Contato do responsável</span><strong>(81) 99945-2108</strong></label>
+        <label><span>Convênio</span><strong>Particular</strong></label>
+        <label><span>CID / Laudo</span><strong>Em avaliação</strong></label>
+      </div>
+      <div className="preview-panel-heading schedule"><span><b>Rotina de sessões</b><small>Os horários irão direto para a agenda</small></span></div>
+      <div className="preview-session-rule"><CalendarDays size={17} /><span><b>Terças e quintas</b><small>10:25 - 11:25 · Psicoterapia individual</small></span><i>Semanal</i></div>
+    </div>
+    <aside className="preview-record-card">
+      <span className="preview-avatar">BA</span>
+      <div><b>Beatriz Almeida</b><small>Novo prontuário</small></div>
+      <dl><div><dt>Plano</dt><dd>Particular</dd></div><div><dt>Sessões</dt><dd>2 por semana</dd></div><div><dt>Valor</dt><dd>R$ 140,00</dd></div><div><dt>Próxima sessão</dt><dd>Ter, 10:25</dd></div></dl>
+      <span className="preview-ready"><CircleCheck size={15} />Pronto para adicionar</span>
+    </aside>
+  </div>;
+}
+
+function PreviewFinance() {
+  return <>
+    <div className="preview-finance-metrics">
+      <div><span>Receita do mês</span><strong>R$ 4.840,00</strong><small>32 sessões registradas</small></div>
+      <div><span>Recebido</span><strong>R$ 3.960,00</strong><small className="positive">+12% em relação a julho</small></div>
+      <div><span>Pendente</span><strong>R$ 880,00</strong><small>4 pagamentos em aberto</small></div>
+      <div className="preview-donut" aria-label="82% recebido"><i><strong>82%</strong><small>recebido</small></i></div>
+    </div>
+    <div className="preview-finance-table">
+      <div className="preview-table-heading"><span><b>Pagamentos de agosto</b><small>Valores atualizados pelas sessões</small></span><label><Search size={14} />Buscar paciente</label></div>
+      <div className="preview-table-row header"><span>Paciente</span><span>Data</span><span>Status</span><span>Valor</span></div>
+      {financePreviewRows.map((row) => <div className="preview-table-row" key={row.patient}><span><i>{row.patient.split(" ").map((name) => name[0]).slice(0, 2).join("")}</i><b>{row.patient}</b></span><span>{row.date}</span><span><em className={row.status === "Pago" ? "paid" : "pending"}>{row.status}</em></span><span><b>{row.value}</b></span></div>)}
+      <div className="preview-table-total"><span>Total exibido</span><strong>R$ 2.400,00</strong></div>
+    </div>
+  </>;
+}
+
+export function ProductPreview({ condensed = false, view = "agenda" }) {
+  const page = productSlides.find((slide) => slide.id === view) || productSlides[0];
+  const isAgenda = view === "agenda";
+  const isPatients = view === "patients";
+  return <div className={`public-product-preview ${condensed ? "condensed" : ""}`} aria-label={`Demonstração: ${page.label} do Clic Med`}>
     <aside>
       <MarketingBrand />
       <div className="preview-nav">
-        <span className="active"><CalendarDays size={16} />Agenda</span>
-        <span><UsersRound size={16} />Pacientes</span>
-        <span><WalletCards size={16} />Financeiro</span>
+        <span className={isAgenda ? "active" : ""}><CalendarDays size={16} />Agenda</span>
+        <span className={isPatients ? "active" : ""}><UsersRound size={16} />Pacientes</span>
+        <span className={view === "finance" ? "active" : ""}><WalletCards size={16} />Financeiro</span>
         <span><UserRound size={16} />Perfil</span>
       </div>
       <div className="preview-account"><i>MC</i><span><b>Marina Costa</b><small>Psicóloga</small></span></div>
     </aside>
     <section>
-      <header><div><small>17 de agosto de 2026</small><h2>Agenda do dia</h2></div><button>+ Nova sessão</button></header>
-      <div className="preview-toolbar"><span><b>Minha agenda</b><small>3 sessões agendadas</small></span><button><CalendarDays size={15} />17 ago 2026</button></div>
-      <div className="preview-legend"><span><i className="green" />Presente</span><span><i className="blue" />Reembolso</span><span><i className="red" />Não compareceu</span></div>
-      <div className="preview-schedule">
-        <time>08:00</time><div className="preview-empty">Horário disponível</div>
-        <time>09:00</time><div className="preview-session green"><span><b>Camila Andrade</b><small>Psicoterapia individual</small></span><em>09:00 - 10:00</em></div>
-        <time>10:00</time><div className="preview-session blue"><span><b>Lucas Martins</b><small>Psicoterapia individual</small></span><em>10:25 - 11:25</em></div>
-        <time>11:00</time><div className="preview-empty">Horário disponível</div>
-        <time>12:00</time><div className="preview-session violet"><span><b>Fernanda Lima</b><small>Acompanhamento terapêutico</small></span><em>12:00 - 13:00</em></div>
-      </div>
+      <header><div><small>{isAgenda ? "17 de agosto de 2026" : page.description}</small><h2>{isAgenda ? "Agenda do dia" : isPatients ? "Adicionar paciente" : "Visão financeira"}</h2></div><button>{isAgenda ? <><Plus size={15} />Nova sessão</> : isPatients ? <><Plus size={15} />Salvar paciente</> : <><Download size={15} />Baixar relatório</>}</button></header>
+      {isAgenda ? <PreviewAgenda /> : isPatients ? <PreviewPatients /> : <PreviewFinance />}
     </section>
+  </div>;
+}
+
+function ProductShowcase() {
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+
+  useEffect(() => {
+    if (!isPlaying || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const timer = window.setInterval(() => setActiveSlide((current) => (current + 1) % productSlides.length), 4800);
+    return () => window.clearInterval(timer);
+  }, [isPlaying]);
+
+  const selectSlide = (index) => {
+    setActiveSlide(index);
+    setIsPlaying(false);
+  };
+  const changeSlide = (direction) => {
+    setActiveSlide((current) => (current + direction + productSlides.length) % productSlides.length);
+    setIsPlaying(false);
+  };
+
+  return <div className="marketing-hero-product" id="demonstracao">
+    <div className="marketing-browser-bar"><i /><i /><i /><span>app.clicmed.com.br</span></div>
+    <div className="marketing-showcase-stage" key={productSlides[activeSlide].id}><ProductPreview condensed view={productSlides[activeSlide].id} /></div>
+    <div className="marketing-showcase-controls">
+      <div role="tablist" aria-label="Telas do Clic Med">
+        {productSlides.map((slide, index) => <button key={slide.id} role="tab" aria-selected={activeSlide === index} onClick={() => selectSlide(index)}><span>{slide.label}</span><small>{slide.description}</small></button>)}
+      </div>
+      <span className="marketing-showcase-buttons">
+        <button aria-label="Tela anterior" onClick={() => changeSlide(-1)}><ChevronLeft size={17} /></button>
+        <button aria-label={isPlaying ? "Pausar demonstração" : "Continuar demonstração"} onClick={() => setIsPlaying((playing) => !playing)}>{isPlaying ? <Pause size={16} /> : <Play size={16} />}</button>
+        <button aria-label="Próxima tela" onClick={() => changeSlide(1)}><ChevronRight size={17} /></button>
+      </span>
+    </div>
   </div>;
 }
 
@@ -218,10 +320,7 @@ export function LandingPage() {
         </div>
         <small><Check size={15} /> Depois, R$ 67 por mês <i /> Cancele quando quiser</small>
       </div>
-      <div className="marketing-hero-product" id="demonstracao">
-        <div className="marketing-browser-bar"><i /><i /><i /><span>app.clicmed.com.br</span></div>
-        <img src="/clic-med-dashboard.png" alt="Agenda do Clic Med com horários e sessões organizadas" />
-      </div>
+      <ProductShowcase />
     </section>
 
     <section className="marketing-proof-strip" aria-label="Principais benefícios">
