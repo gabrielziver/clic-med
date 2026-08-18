@@ -115,9 +115,23 @@ const focusResults = {
 };
 
 const featureItems = [
-  { icon: CalendarDays, title: "Agenda que nasce do cadastro", text: "Defina dias e horários do paciente uma vez e leve as sessões para a agenda." },
-  { icon: UsersRound, title: "Pacientes e prontuários", text: "Reúna dados administrativos, contatos, plano, sessões e observações." },
-  { icon: WalletCards, title: "Financeiro conectado", text: "Marque pagamentos, acompanhe pendências e gere relatórios por dia ou mês." },
+  { icon: CalendarDays, label: "Agenda", title: "Horários e sessões sem retrabalho", text: "Defina a rotina do paciente no cadastro e acompanhe presenças, faltas e reagendamentos em uma agenda clara." },
+  { icon: UsersRound, label: "Pacientes", title: "As informações certas em um só lugar", text: "Centralize contatos, plano, sessões e observações para encontrar o que precisa antes de cada atendimento." },
+  { icon: WalletCards, label: "Financeiro", title: "Valores que acompanham os atendimentos", text: "Registre pagamentos, veja pendências e baixe relatórios por dia ou mês sem fechar outra planilha." },
+];
+
+const painItems = [
+  { icon: CalendarDays, title: "Horários espalhados", text: "A agenda muda, mas a planilha continua desatualizada." },
+  { icon: UsersRound, title: "Informações repetidas", text: "O mesmo paciente aparece em anotações, agenda e controles diferentes." },
+  { icon: WalletCards, title: "Financeiro no escuro", text: "É difícil saber o que entrou e o que ainda está pendente." },
+];
+
+const faqItems = [
+  { question: "Para quem o Clic Med foi criado?", answer: "Para psicólogos e terapeutas autônomos que querem organizar pacientes, agenda e financeiro sem depender de várias planilhas." },
+  { question: "O que acontece depois dos três dias gratuitos?", answer: "A assinatura mensal de R$ 67 começa automaticamente no cartão informado no checkout. Você pode cancelar pelo próprio perfil antes da renovação." },
+  { question: "Preciso instalar algum programa?", answer: "Não. O Clic Med funciona pelo navegador no computador ou no celular." },
+  { question: "Posso escolher horários fora do padrão de uma hora?", answer: "Sim. Ao criar uma sessão, você pode informar horários específicos, como 10:25, e manter a duração adequada ao atendimento." },
+  { question: "Consigo baixar um relatório financeiro?", answer: "Sim. O financeiro permite gerar relatórios em PDF por um dia escolhido ou pelo mês completo." },
 ];
 
 function setPageMetadata(title, description) {
@@ -194,46 +208,64 @@ export function LandingPage() {
   return <main className="marketing-page">
     <MarketingHeader />
     <section className="marketing-hero">
-      <div className="marketing-hero-overlay" />
       <div className="marketing-hero-content">
-        <p className="marketing-kicker">Feito para psicólogos e terapeutas autônomos</p>
-        <h1>Menos tempo organizando planilhas. Mais clareza para cuidar do consultório.</h1>
-        <p>Agenda, pacientes, sessões e financeiro reunidos em um sistema simples de usar.</p>
+        <p className="marketing-kicker"><span /> Gestão simples para psicólogos e terapeutas</p>
+        <h1>Seu consultório organizado <span>sem depender de planilhas.</span></h1>
+        <p>Cadastre o paciente uma vez e acompanhe agenda, sessões, pagamentos e relatórios no mesmo lugar.</p>
         <div className="marketing-hero-actions">
           <button onClick={() => startTrial("pagina_hero")}>Testar grátis por 3 dias <ArrowRight size={18} /></button>
-          <a href="#demonstracao">Ver como funciona</a>
+          <a href="#demonstracao">Conhecer o sistema</a>
         </div>
-        <small><Check size={15} /> Depois, R$ 67 por mês. Cancele quando quiser.</small>
+        <small><Check size={15} /> Depois, R$ 67 por mês <i /> Cancele quando quiser</small>
+      </div>
+      <div className="marketing-hero-product" id="demonstracao">
+        <div className="marketing-browser-bar"><i /><i /><i /><span>app.clicmed.com.br</span></div>
+        <img src="/clic-med-dashboard.png" alt="Agenda do Clic Med com horários e sessões organizadas" />
       </div>
     </section>
 
     <section className="marketing-proof-strip" aria-label="Principais benefícios">
-      <div><span><Clock3 size={18} />Cadastro único</span><span><CircleCheck size={18} />Agenda integrada</span><span><FileText size={18} />Relatórios em PDF</span><span><CreditCard size={18} />3 dias gratuitos</span></div>
+      <div><span><Clock3 size={18} /><b>Cadastro único</b><small>Registre uma vez</small></span><span><CircleCheck size={18} /><b>Agenda integrada</b><small>Veja a rotina do dia</small></span><span><FileText size={18} /><b>Relatórios em PDF</b><small>Baixe por dia ou mês</small></span><span><CreditCard size={18} /><b>3 dias gratuitos</b><small>Teste na sua rotina</small></span></div>
     </section>
 
-    <section className="marketing-demo" id="demonstracao">
-      <div className="marketing-section-head"><p className="marketing-kicker">Veja antes de testar</p><h2>Uma rotina inteira em uma única tela</h2><p>Cadastre o paciente, acompanhe as sessões e mantenha os valores atualizados sem repetir a mesma informação em vários lugares.</p></div>
-      <img src="/clic-med-dashboard.png" alt="Tela da agenda do Clic Med com horários e sessões organizadas" />
-    </section>
-
-    <section className="marketing-features" id="recursos">
-      <div className="marketing-section-head"><p className="marketing-kicker">O essencial, bem resolvido</p><h2>Comece pelo que mais toma tempo hoje</h2></div>
-      <div className="marketing-feature-list">
-        {featureItems.map(({ icon: Icon, title, text }, index) => <article key={title}><span>{String(index + 1).padStart(2, "0")}</span><Icon size={22} /><div><h3>{title}</h3><p>{text}</p></div></article>)}
+    <section className="marketing-problem">
+      <div className="marketing-section-head"><p className="marketing-kicker">O problema não é atender</p><h2>É precisar reorganizar o consultório depois de cada atendimento.</h2><p>Quando agenda, pacientes e financeiro vivem separados, uma mudança simples vira várias tarefas manuais.</p></div>
+      <div className="marketing-pain-list">
+        {painItems.map(({ icon: Icon, title, text }) => <article key={title}><Icon size={21} /><div><h3>{title}</h3><p>{text}</p></div></article>)}
       </div>
     </section>
 
+    <section className="marketing-features" id="recursos">
+      <div className="marketing-section-head"><p className="marketing-kicker">Tudo conversa entre si</p><h2>Cadastre uma vez. A rotina acompanha.</h2><p>O Clic Med conecta as três áreas que mais exigem atualização no dia a dia do consultório.</p></div>
+      <div className="marketing-feature-list">
+        {featureItems.map(({ icon: Icon, label, title, text }, index) => <article key={title}><span>{String(index + 1).padStart(2, "0")}</span><Icon size={22} /><div><small>{label}</small><h3>{title}</h3><p>{text}</p></div></article>)}
+      </div>
+    </section>
+
+    <section className="marketing-connection">
+      <p className="marketing-kicker">Seu primeiro ganho rápido</p>
+      <h2>Marque um pagamento e veja o financeiro se atualizar. Altere uma sessão e mantenha a agenda certa.</h2>
+      <a href="#preco">Começar com meus atendimentos <ArrowRight size={18} /></a>
+    </section>
+
     <section className="marketing-workflow">
-      <div><p className="marketing-kicker">Percepção rápida de valor</p><h2>Em poucos minutos, sua primeira sessão já pode estar organizada.</h2></div>
-      <ol><li><span>1</span><div><b>Comece pelo teste</b><p>Informe seus dados no checkout seguro da Stripe.</p></div></li><li><span>2</span><div><b>Crie seu acesso</b><p>Use o mesmo e-mail para entrar no Clic Med.</p></div></li><li><span>3</span><div><b>Acompanhe tudo</b><p>Agenda e financeiro passam a trabalhar juntos.</p></div></li></ol>
+      <div><p className="marketing-kicker">Comece sem complicação</p><h2>Sua primeira sessão organizada em três passos.</h2><p>Você não precisa migrar toda a rotina de uma vez. Comece com os próximos atendimentos e perceba o valor no uso.</p></div>
+      <ol><li><span>1</span><div><b>Ative seu teste</b><p>Informe seus dados no checkout seguro da Stripe.</p></div></li><li><span>2</span><div><b>Cadastre o primeiro paciente</b><p>Adicione contatos, valor e a rotina de sessões.</p></div></li><li><span>3</span><div><b>Acompanhe a agenda e o financeiro</b><p>Os atendimentos passam a fazer parte do mesmo fluxo.</p></div></li></ol>
     </section>
 
     <section className="marketing-price" id="preco">
-      <div><p className="marketing-kicker">Plano de lançamento</p><h2>Teste o Clic Med na sua rotina</h2><p>Explore todas as funções por três dias antes da primeira cobrança.</p></div>
-      <div className="marketing-price-summary"><span>Plano mensal</span><strong><small>R$</small> 67 <small>/mês</small></strong><ul><li><Check size={17} />3 dias gratuitos</li><li><Check size={17} />Todas as funções do sistema</li><li><Check size={17} />Cancelamento pelo próprio perfil</li></ul><button onClick={() => startTrial("pagina_preco")}>Começar teste gratuito <ArrowRight size={18} /></button><small>A cobrança começa após o período de teste.</small></div>
+      <div><p className="marketing-kicker">Um plano simples</p><h2>O essencial para organizar seu consultório por R$ 67 ao mês.</h2><p>Use todas as funções durante três dias e decida com a sua própria rotina, antes da primeira cobrança.</p><div className="marketing-price-note"><ShieldCheck size={20} /><span><b>Pagamento seguro pela Stripe</b><small>Seus dados de cartão não ficam armazenados no Clic Med.</small></span></div></div>
+      <div className="marketing-price-summary"><span>Plano Clic Med</span><strong><small>R$</small> 67 <small>/mês</small></strong><p>Três dias gratuitos para começar.</p><ul><li><Check size={17} />Agenda, pacientes e financeiro</li><li><Check size={17} />Relatórios financeiros em PDF</li><li><Check size={17} />Todas as atualizações do plano</li><li><Check size={17} />Cancelamento pelo próprio perfil</li></ul><button onClick={() => startTrial("pagina_preco")}>Testar grátis por 3 dias <ArrowRight size={18} /></button><small>A cobrança começa após o período de teste.</small></div>
     </section>
 
-    <section className="marketing-final-cta"><div><h2>Sua planilha não precisa continuar sendo o centro do consultório.</h2><p>Teste com seus próprios atendimentos durante três dias.</p></div><button onClick={() => startTrial("pagina_final")}>Testar o Clic Med <ArrowRight size={18} /></button></section>
+    <section className="marketing-faq">
+      <div className="marketing-section-head"><p className="marketing-kicker">Dúvidas frequentes</p><h2>Antes de começar</h2><p>As respostas essenciais para testar o Clic Med com tranquilidade.</p></div>
+      <div className="marketing-faq-list">
+        {faqItems.map(({ question, answer }) => <details key={question}><summary>{question}<span>+</span></summary><p>{answer}</p></details>)}
+      </div>
+    </section>
+
+    <section className="marketing-final-cta"><div><p className="marketing-kicker">Comece pela próxima sessão</p><h2>Sua planilha não precisa continuar sendo o centro do consultório.</h2><p>Teste o Clic Med com seus próprios atendimentos durante três dias.</p></div><button onClick={() => startTrial("pagina_final")}>Testar grátis por 3 dias <ArrowRight size={18} /></button></section>
     <footer className="marketing-footer"><MarketingBrand /><span>© 2026 Clic Med</span><a href="/app">Acessar conta</a></footer>
   </main>;
 }
