@@ -155,6 +155,7 @@ function Brand() {
 }
 
 function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "direto" }) {
+  const checkoutSuccess = new URLSearchParams(window.location.search).get("checkout") === "success";
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -196,8 +197,8 @@ function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "di
         </div>
         <div className="auth-form-wrap">
           <div className="auth-form-head">
-            <h2>{mode === "login" ? "Acesse sua conta" : "Crie sua conta"}</h2>
-            <p>{mode === "login" ? "Entre para continuar no Clic Med." : "Comece a organizar seus atendimentos."}</p>
+            <h2>{mode === "login" ? "Acesse sua conta" : checkoutSuccess ? "Crie sua conta para ativar o teste" : "Crie sua conta"}</h2>
+            <p>{mode === "login" ? "Entre para continuar no Clic Med." : checkoutSuccess ? "Use o mesmo e-mail informado no checkout da Stripe." : "Comece a organizar seus atendimentos."}</p>
           </div>
           <div className="auth-switch" role="tablist">
             <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
@@ -429,7 +430,7 @@ function DashboardApp() {
       owner
         ? Promise.resolve({ data: null, error: null })
         : supabase.from("access_grants").select("email, active, starts_at, expires_at").eq("email", activeSession.user.email).maybeSingle(),
-      supabase.from("stripe_subscriptions").select("*").eq("user_id", activeSession.user.id).maybeSingle(),
+      supabase.from("stripe_subscriptions").select("*").or(`user_id.eq.${activeSession.user.id},email.eq.${activeSession.user.email?.toLowerCase()}`).limit(1).maybeSingle(),
     ]);
     setAccessLoading(false);
     if (accessResult.error || grantResult.error || subscriptionResult.error) {

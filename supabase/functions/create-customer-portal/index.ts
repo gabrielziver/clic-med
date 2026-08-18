@@ -15,10 +15,17 @@ Deno.serve(async (request) => {
     const { data: subscription } = await supabaseAdmin
       .from("stripe_subscriptions")
       .select("stripe_customer_id")
-      .eq("user_id", user.id)
+      .or(`user_id.eq.${user.id},email.eq.${user.email?.toLowerCase()}`)
       .eq("livemode", true)
+      .limit(1)
       .maybeSingle();
     if (!subscription?.stripe_customer_id) return json({ error: "Nenhuma assinatura encontrada." }, 404);
+
+    await supabaseAdmin
+      .from("stripe_subscriptions")
+      .update({ user_id: user.id })
+      .is("user_id", null)
+      .eq("email", user.email?.toLowerCase());
 
     const portal = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,

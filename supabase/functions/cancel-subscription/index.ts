@@ -17,7 +17,8 @@ Deno.serve(async (request) => {
     const { data: subscription, error: subscriptionError } = await supabaseAdmin
       .from("stripe_subscriptions")
       .select("stripe_subscription_id, livemode")
-      .eq("user_id", user.id)
+      .or(`user_id.eq.${user.id},email.eq.${user.email?.toLowerCase()}`)
+      .limit(1)
       .maybeSingle();
     if (subscriptionError) throw subscriptionError;
     if (!subscription?.stripe_subscription_id || !subscription.livemode) {
@@ -35,11 +36,12 @@ Deno.serve(async (request) => {
     const { error: updateError } = await supabaseAdmin
       .from("stripe_subscriptions")
       .update({
+        user_id: user.id,
         cancel_at_period_end: true,
         current_period_end: isoFromUnix(periodEnd),
         status: updated.status,
       })
-      .eq("user_id", user.id);
+      .eq("stripe_subscription_id", subscription.stripe_subscription_id);
     if (updateError) throw updateError;
 
     return json({ cancel_at_period_end: true, current_period_end: isoFromUnix(periodEnd) });

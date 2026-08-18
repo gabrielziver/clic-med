@@ -8,26 +8,41 @@ function isoFromUnix(value?: number | null) {
   return value ? new Date(value * 1000).toISOString() : null;
 }
 
-async function syncSubscription(subscription: Stripe.Subscription, eventCreated: number, livemode: boolean) {
+async function customerEmail(customerId: string) {
+  const customer = await stripe.customers.retrieve(customerId);
+  if (customer.deleted) return null;
+  return customer.email || null;
+}
+
+async function userIdByEmail(email: string | null | undefined) {
+  if (!email) return null;
+  const { data, error } = await supabaseAdmin.auth.admin.listUsers();
+  if (error) throw error;
+  return data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase())?.id || null;
+}
+
+async function syncSubscription(subscription: Stripe.Subscription, eventCreated: number, livemode: boolean, fallbackEmail?: string | null) {
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
   const { data: existing } = await supabaseAdmin
     .from("stripe_subscriptions")
-    .select("user_id, email, last_event_created")
+    .select("user_id, email, stripe_customer_id, last_event_created")
     .eq("stripe_customer_id", customerId)
     .maybeSingle();
 
   if (existing && Number(existing.last_event_created) > eventCreated) return;
   const userId = subscription.metadata?.supabase_user_id || existing?.user_id;
-  const email = subscription.metadata?.email || existing?.email;
-  if (!userId || !email) throw new Error(`Missing user mapping for Stripe customer ${customerId}`);
+  const email = subscription.metadata?.email || existing?.email || fallbackEmail || await customerEmail(customerId);
+  if (!email) throw new Error(`Missing email mapping for Stripe customer ${customerId}`);
+  const resolvedUserId = userId || await userIdByEmail(String(email));
 
   const firstItem = subscription.items.data[0];
   const periodEnd = (firstItem as Stripe.SubscriptionItem & { current_period_end?: number }).current_period_end
     || (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end
     || subscription.trial_end;
 
+  const conflictTarget = existing?.stripe_customer_id ? "stripe_customer_id" : resolvedUserId ? "user_id" : "stripe_customer_id";
   const { error } = await supabaseAdmin.from("stripe_subscriptions").upsert({
-    user_id: userId,
+    user_id: resolvedUserId,
     email: String(email).toLowerCase(),
     stripe_customer_id: customerId,
     stripe_subscription_id: subscription.id,
@@ -38,7 +53,7 @@ async function syncSubscription(subscription: Stripe.Subscription, eventCreated:
     trial_end: isoFromUnix(subscription.trial_end),
     cancel_at_period_end: subscription.cancel_at_period_end,
     last_event_created: eventCreated,
-  }, { onConflict: "user_id" });
+  }, { onConflict: conflictTarget });
   if (error) throw error;
 }
 
@@ -70,7 +85,7 @@ Deno.serve(async (request) => {
         const checkout = event.data.object as Stripe.Checkout.Session;
         if (checkout.mode === "subscription" && checkout.subscription) {
           const subscriptionId = typeof checkout.subscription === "string" ? checkout.subscription : checkout.subscription.id;
-          await syncSubscription(await stripe.subscriptions.retrieve(subscriptionId), event.created, event.livemode);
+          await syncSubscription(await stripe.subscriptions.retrieve(subscriptionId), event.created, event.livemode, checkout.customer_details?.email);
         }
         break;
       }

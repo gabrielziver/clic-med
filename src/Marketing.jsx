@@ -14,6 +14,7 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
+import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
 
 const questions = [
   {
@@ -80,8 +81,17 @@ function setPageMetadata(title, description) {
   if (meta) meta.setAttribute("content", description);
 }
 
-function startTrial(origin) {
-  window.location.assign(`/app?cadastro=1&origem=${origin}`);
+async function startTrial(origin) {
+  if (!isSupabaseConfigured || !supabase) {
+    window.location.assign(`/app?cadastro=1&origem=${encodeURIComponent(origin)}`);
+    return;
+  }
+  const { data, error } = await supabase.functions.invoke("create-public-checkout-session", { body: { origin } });
+  if (error || !data?.url) {
+    window.alert(data?.error || error?.message || "Não foi possível abrir o checkout agora.");
+    return;
+  }
+  window.location.assign(data.url);
 }
 
 function MarketingBrand() {
@@ -170,7 +180,7 @@ export function LandingPage() {
 
     <section className="marketing-workflow">
       <div><p className="marketing-kicker">Percepção rápida de valor</p><h2>Em poucos minutos, sua primeira sessão já pode estar organizada.</h2></div>
-      <ol><li><span>1</span><div><b>Crie sua conta</b><p>Informe nome, e-mail e senha.</p></div></li><li><span>2</span><div><b>Cadastre um paciente</b><p>Adicione o horário junto com o cadastro.</p></div></li><li><span>3</span><div><b>Acompanhe tudo</b><p>Agenda e financeiro passam a trabalhar juntos.</p></div></li></ol>
+      <ol><li><span>1</span><div><b>Comece pelo teste</b><p>Informe seus dados no checkout seguro da Stripe.</p></div></li><li><span>2</span><div><b>Crie seu acesso</b><p>Use o mesmo e-mail para entrar no Clic Med.</p></div></li><li><span>3</span><div><b>Acompanhe tudo</b><p>Agenda e financeiro passam a trabalhar juntos.</p></div></li></ol>
     </section>
 
     <section className="marketing-price" id="preco">

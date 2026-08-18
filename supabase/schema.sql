@@ -16,7 +16,7 @@ create table if not exists public.access_grants (
 
 create table if not exists public.stripe_subscriptions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null unique references auth.users(id) on delete cascade,
+  user_id uuid unique references auth.users(id) on delete cascade,
   email citext not null,
   stripe_customer_id text unique,
   stripe_subscription_id text unique,
@@ -119,7 +119,10 @@ as $$
     or exists (
       select 1
       from public.stripe_subscriptions
-      where stripe_subscriptions.user_id = (select auth.uid())
+      where (
+          stripe_subscriptions.user_id = (select auth.uid())
+          or lower(stripe_subscriptions.email::text) = lower(coalesce((select auth.jwt() ->> 'email'), ''))
+        )
         and stripe_subscriptions.livemode
         and stripe_subscriptions.status in ('trialing', 'active')
         and stripe_subscriptions.current_period_end > now()
@@ -153,7 +156,11 @@ using (public.is_platform_owner());
 
 drop policy if exists "stripe_subscriptions_select" on public.stripe_subscriptions;
 create policy "stripe_subscriptions_select" on public.stripe_subscriptions for select to authenticated
-using ((select auth.uid()) = user_id or public.is_platform_owner());
+using (
+  (select auth.uid()) = user_id
+  or lower(email::text) = lower(coalesce((select auth.jwt() ->> 'email'), ''))
+  or public.is_platform_owner()
+);
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select to authenticated

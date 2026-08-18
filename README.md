@@ -19,7 +19,7 @@ As tabelas usam Row Level Security. Cada registro possui `user_id`, e as políti
 
 ## Assinaturas e controle de acesso
 
-O plano **Clic Med Mensal** custa **R$ 67,00 por mês** e inclui **3 dias de teste gratuito**. O Checkout, a cobrança recorrente e o portal do cliente são hospedados pela Stripe. Depois de um pagamento ou alteração da assinatura, o webhook atualiza `stripe_subscriptions` no Supabase e o banco libera ou bloqueia o acesso automaticamente.
+O plano **Clic Med Mensal** custa **R$ 67,00 por mês** e inclui **3 dias de teste gratuito**. O Checkout, a cobrança recorrente e o portal do cliente são hospedados pela Stripe. A página pública usa `create-public-checkout-session` para levar o visitante direto ao Checkout; depois ele cria a conta usando o mesmo e-mail da compra. Depois de um pagamento ou alteração da assinatura, o webhook atualiza `stripe_subscriptions` no Supabase e o banco libera ou bloqueia o acesso automaticamente.
 
 Estados que liberam o sistema: `trialing` e `active`, desde que o período atual ainda esteja válido e a assinatura seja de produção (`livemode`). Cancelamentos, testes vencidos e pagamentos não regularizados bloqueiam os dados também pelas políticas de Row Level Security.
 
