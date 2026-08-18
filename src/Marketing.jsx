@@ -18,56 +18,111 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
 
 const questions = [
   {
-    title: "Como você organiza hoje os dados dos seus pacientes?",
-    context: "Cadastro e prontuário",
+    title: "Em qual momento profissional você está hoje?",
+    context: "Seu momento atual",
+    visualText: "Entender o tamanho da rotina ajuda a mostrar onde a organização pode gerar valor primeiro.",
     options: [
-      { label: "Uso um sistema organizado", score: 0 },
-      { label: "Uso uma planilha", score: 2 },
-      { label: "Uso agenda, anotações e arquivos separados", score: 3 },
-      { label: "Ainda não tenho um padrão", score: 4 },
+      { label: "Estou organizando meus primeiros atendimentos", score: 0 },
+      { label: "Atendo sozinho e minha agenda está crescendo", score: 1 },
+      { label: "Tenho uma rotina estável e quero ganhar tempo", score: 1 },
+      { label: "Organizo uma clínica com outros profissionais", score: 3 },
     ],
   },
   {
-    title: "Quanto trabalho dá para manter sua agenda atualizada?",
-    context: "Agenda de atendimentos",
+    title: "Quantas sessões você realiza por semana, em média?",
+    context: "Volume de atendimentos",
+    visualText: "Quanto mais sessões acontecem, mais importante fica manter agenda e financeiro conectados.",
     options: [
-      { label: "Quase nenhum, já é automático", score: 0 },
-      { label: "Atualizo manualmente, mas é tranquilo", score: 1 },
-      { label: "Repito informações em mais de um lugar", score: 3 },
-      { label: "Às vezes perco horários ou alterações", score: 4 },
+      { label: "Até 10 sessões", score: 0 },
+      { label: "De 11 a 25 sessões", score: 1 },
+      { label: "De 26 a 40 sessões", score: 3 },
+      { label: "Mais de 40 sessões", score: 4 },
     ],
   },
   {
-    title: "Como você acompanha sessões pagas e valores pendentes?",
-    context: "Controle financeiro",
+    title: "Onde ficam as informações do seu consultório hoje?",
+    context: "Organização da rotina",
+    visualText: "Centralizar não é mudar seu jeito de atender. É deixar de repetir a mesma informação.",
     options: [
-      { label: "Tenho uma visão atualizada e confiável", score: 0 },
-      { label: "Confiro tudo manualmente no fim do mês", score: 2 },
-      { label: "Preciso cruzar planilha, agenda e extrato", score: 3 },
-      { label: "Não consigo ver o total com facilidade", score: 4 },
+      { label: "Uso um sistema, mas ainda mantenho controles por fora", score: 1, area: "base", areaWeight: 1 },
+      { label: "Uso planilha para pacientes e financeiro", score: 2, area: "finance", areaWeight: 2 },
+      { label: "Espalho entre agenda, WhatsApp e anotações", score: 3, area: "patients", areaWeight: 2 },
+      { label: "Ainda não tenho um padrão único", score: 4, area: "base", areaWeight: 3 },
     ],
   },
   {
-    title: "Se um paciente faltar ou reagendar, o que acontece na sua rotina?",
-    context: "Atualização das sessões",
+    title: "Qual tarefa mais consome sua atenção durante a semana?",
+    context: "Principal ponto de atrito",
+    visualText: "Seu resultado vai priorizar o gargalo que mais disputa tempo com os atendimentos.",
     options: [
-      { label: "Tudo é atualizado em um único lugar", score: 0 },
-      { label: "Faço uma alteração manual", score: 1 },
-      { label: "Preciso alterar agenda e financeiro", score: 3 },
-      { label: "Às vezes alguma informação fica para trás", score: 4 },
+      { label: "Conferir horários, faltas e reagendamentos", score: 2, area: "agenda", areaWeight: 7 },
+      { label: "Saber quem pagou e o que está pendente", score: 3, area: "finance", areaWeight: 7 },
+      { label: "Encontrar dados e histórico de cada paciente", score: 3, area: "patients", areaWeight: 7 },
+      { label: "Montar totais e relatórios no fim do período", score: 4, area: "finance", areaWeight: 7 },
     ],
   },
   {
-    title: "Quanto tempo por semana você dedica a tarefas administrativas?",
-    context: "Tempo de gestão",
+    title: "Quando alguém falta ou reagenda, como você atualiza a rotina?",
+    context: "Mudanças do dia a dia",
+    visualText: "Uma única alteração deveria atualizar o restante da gestão sem criar uma nova conferência.",
     options: [
-      { label: "Menos de 30 minutos", score: 0 },
-      { label: "Entre 30 minutos e 1 hora", score: 1 },
-      { label: "Entre 1 e 3 horas", score: 3 },
-      { label: "Mais de 3 horas", score: 4 },
+      { label: "Faço uma atualização manual em um único lugar", score: 1, area: "agenda", areaWeight: 1 },
+      { label: "Corrijo a agenda e confiro o restante depois", score: 2, area: "agenda", areaWeight: 2 },
+      { label: "Mudo agenda e financeiro separadamente", score: 3, area: "agenda", areaWeight: 3 },
+      { label: "Às vezes alguma informação fica desatualizada", score: 4, area: "base", areaWeight: 3 },
+    ],
+  },
+  {
+    title: "Qual mudança você mais quer perceber nos próximos três meses?",
+    context: "Resultado desejado",
+    visualText: "O melhor sistema é aquele que melhora uma parte visível da rotina logo nos primeiros usos.",
+    options: [
+      { label: "Enxergar a semana com horários e mudanças organizados", score: 2, area: "agenda", areaWeight: 1 },
+      { label: "Saber o que entrou e o que está pendente sem fechar planilha", score: 3, area: "finance", areaWeight: 1 },
+      { label: "Encontrar as informações de cada paciente em um só lugar", score: 2, area: "patients", areaWeight: 1 },
+      { label: "Ter agenda, pacientes e financeiro trabalhando juntos", score: 3, area: "base", areaWeight: 1 },
     ],
   },
 ];
+
+const scoreRange = questions.reduce((range, question) => {
+  const scores = question.options.map((option) => option.score);
+  return {
+    min: range.min + Math.min(...scores),
+    max: range.max + Math.max(...scores),
+  };
+}, { min: 0, max: 0 });
+
+const focusResults = {
+  agenda: {
+    label: "Agenda e sessões",
+    title: "Sua agenda é o ponto que mais pede simplificação.",
+    text: "Horários, faltas e reagendamentos ainda exigem conferências que poderiam acontecer em um único fluxo.",
+    bullets: ["Sessões criadas a partir do cadastro", "Horários flexíveis e status por atendimento", "Alterações refletidas na visão da rotina"],
+    quickWin: "Cadastre um paciente e veja a sessão entrar automaticamente na agenda.",
+  },
+  finance: {
+    label: "Visibilidade financeira",
+    title: "Seu financeiro precisa acompanhar as sessões sem depender de fechamento manual.",
+    text: "A maior oportunidade está em transformar atendimentos e pagamentos em uma visão clara do período.",
+    bullets: ["Pagamentos e pendências por paciente", "Totais atualizados conforme as sessões", "Relatórios financeiros por dia ou mês"],
+    quickWin: "Marque um pagamento e veja o valor entrar no resumo financeiro.",
+  },
+  patients: {
+    label: "Pacientes e informações",
+    title: "As informações dos pacientes ainda estão exigindo buscas e repetições.",
+    text: "Centralizar cadastro, contatos e histórico reduz o trabalho de procurar dados antes e depois de cada sessão.",
+    bullets: ["Cadastro administrativo em um só lugar", "Prontuário acessível a partir da agenda", "Dados conectados às sessões e ao financeiro"],
+    quickWin: "Abra um paciente pela agenda e encontre os dados da rotina em uma única tela.",
+  },
+  base: {
+    label: "Rotina conectada",
+    title: "Sua maior oportunidade está em fazer a gestão trabalhar como um único fluxo.",
+    text: "A rotina já acontece, mas partes importantes ainda vivem separadas e dependem de atualização manual.",
+    bullets: ["Cadastro e agenda conectados", "Sessões ligadas ao controle financeiro", "Informações atualizadas sem retrabalho"],
+    quickWin: "Cadastre um paciente uma vez e acompanhe agenda e financeiro a partir dele.",
+  },
+};
 
 const featureItems = [
   { icon: CalendarDays, title: "Agenda que nasce do cadastro", text: "Defina dias e horários do paciente uma vez e leve as sessões para a agenda." },
@@ -106,7 +161,7 @@ function MarketingHeader({ compact = false }) {
         {!compact && <a href="#recursos">Recursos</a>}
         {!compact && <a href="#preco">Preço</a>}
         <a href="/app">Entrar</a>
-        <button onClick={() => startTrial(compact ? "quiz_cabecalho" : "pagina_cabecalho")}>Testar grátis <ArrowRight size={16} /></button>
+        {!compact && <button onClick={() => startTrial("pagina_cabecalho")}>Testar grátis <ArrowRight size={16} /></button>}
       </nav>
     </div>
   </header>;
@@ -194,67 +249,118 @@ export function LandingPage() {
 }
 
 function scoreResult(score) {
-  if (score <= 30) return { label: "Rotina bem estruturada", tone: "low", title: "Sua organização já tem uma boa base.", text: "O Clic Med pode ajudar a concentrar o que ainda está separado e reduzir etapas manuais." };
-  if (score <= 65) return { label: "Organização com pontos de atenção", tone: "medium", title: "Existem tarefas manuais consumindo sua rotina.", text: "Centralizar agenda, pacientes e financeiro pode trazer mais clareza sem mudar a forma como você atende." };
-  return { label: "Rotina administrativa sobrecarregada", tone: "high", title: "Sua gestão está pedindo um fluxo mais simples.", text: "O Clic Med foi pensado para reduzir repetições e deixar sessões, pacientes e recebimentos no mesmo lugar." };
+  if (score <= 72) return { label: "Base pronta para centralizar", tone: "low" };
+  if (score <= 86) return { label: "Rotina manual em transição", tone: "medium" };
+  return { label: "Gestão pedindo automação", tone: "high" };
+}
+
+function getFocusArea(answers) {
+  const totals = answers.reduce((areas, answer) => {
+    if (answer.area) areas[answer.area] = (areas[answer.area] || 0) + (answer.areaWeight || 1);
+    return areas;
+  }, {});
+  return Object.entries(totals).sort((first, second) => second[1] - first[1])[0]?.[0] || "base";
 }
 
 export function QuizPage() {
+  const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState([]);
-  const finished = step >= questions.length;
-  const score = useMemo(() => Math.round((answers.reduce((sum, value) => sum + value, 0) / (questions.length * 4)) * 100), [answers]);
-  const result = scoreResult(score);
-  const progress = finished ? 100 : Math.round((step / questions.length) * 100);
+  const [processing, setProcessing] = useState(false);
+  const finished = started && !processing && step >= questions.length;
+  const score = useMemo(() => {
+    const rawScore = answers.reduce((sum, answer) => sum + answer.score, 0);
+    const normalized = (rawScore - scoreRange.min) / (scoreRange.max - scoreRange.min);
+    return Math.max(60, Math.min(100, 60 + Math.round(normalized * 40)));
+  }, [answers]);
+  const profile = scoreResult(score);
+  const focusArea = useMemo(() => getFocusArea(answers), [answers]);
+  const focus = focusResults[focusArea];
+  const progress = !started ? 0 : (processing || finished ? 100 : Math.round(((step + 1) / questions.length) * 100));
 
-  useEffect(() => setPageMetadata("Diagnóstico de organização | Clic Med", "Descubra em poucos passos como está a organização administrativa do seu consultório."), []);
+  useEffect(() => setPageMetadata("Diagnóstico da rotina | Clic Med", "Descubra o potencial de simplificação da gestão do seu consultório em seis perguntas."), []);
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [step]);
+  }, [started, step, processing]);
+  useEffect(() => {
+    if (!processing) return undefined;
+    const timer = window.setTimeout(() => setProcessing(false), 1700);
+    return () => window.clearTimeout(timer);
+  }, [processing]);
 
-  function answerQuestion(value) {
-    setAnswers((current) => [...current.slice(0, step), value]);
+  function answerQuestion(option) {
+    setAnswers((current) => [...current.slice(0, step), option]);
+    if (step === questions.length - 1) setProcessing(true);
     setStep((current) => current + 1);
   }
 
   function goBack() {
-    if (step === 0) window.location.assign("/conheca");
+    if (!started) window.location.assign("/conheca");
+    else if (step === 0) setStarted(false);
     else setStep((current) => current - 1);
   }
 
-  function restart() { setAnswers([]); setStep(0); }
+  function restart() { setAnswers([]); setStep(0); setStarted(false); setProcessing(false); }
 
   return <main className="quiz-page">
     <MarketingHeader compact />
     <div className="quiz-progress" aria-label={`Progresso: ${progress}%`}><i style={{ width: `${progress}%` }} /></div>
-    {!finished ? <section className="quiz-shell">
+    {!started ? <section className="quiz-intro">
+      <div className="quiz-intro-copy">
+        <p className="marketing-kicker">Diagnóstico da rotina do consultório</p>
+        <h1>Quanto da sua gestão ainda depende de tarefas manuais?</h1>
+        <p>Responda seis perguntas rápidas e descubra onde o Clic Med pode simplificar sua rotina primeiro.</p>
+        <div className="quiz-intro-points">
+          <span><Clock3 size={18} /><b>Menos de 2 minutos</b></span>
+          <span><ShieldCheck size={18} /><b>Sem cadastro inicial</b></span>
+          <span><CircleCheck size={18} /><b>Resultado personalizado</b></span>
+        </div>
+        <button className="quiz-primary quiz-start" onClick={() => setStarted(true)}>Começar meu diagnóstico <ArrowRight size={18} /></button>
+        <small>Não existe resposta certa. Escolha o que mais se aproxima da sua rotina.</small>
+      </div>
+      <aside className="quiz-intro-preview">
+        <p>O que vamos analisar</p>
+        <div className="quiz-intro-focus">
+          <span><CalendarDays size={19} /><b>Agenda</b><small>Horários, faltas e reagendamentos</small></span>
+          <span><UsersRound size={19} /><b>Pacientes</b><small>Cadastro e informações da rotina</small></span>
+          <span><WalletCards size={19} /><b>Financeiro</b><small>Pagamentos, pendências e relatórios</small></span>
+        </div>
+        <img src="/clic-med-dashboard.png" alt="Agenda e gestão do Clic Med" />
+      </aside>
+    </section> : processing ? <section className="quiz-processing" aria-live="polite">
+      <span className="quiz-processing-spinner" aria-hidden="true" />
+      <p className="marketing-kicker">Analisando sua rotina</p>
+      <h1>Identificando onde você pode ganhar mais clareza primeiro...</h1>
+      <div><span><Check size={17} />Cruzando volume e organização</span><span><Check size={17} />Priorizando o principal gargalo</span><span><Check size={17} />Preparando sua recomendação</span></div>
+    </section> : !finished ? <section className="quiz-shell">
       <div className="quiz-question">
         <button className="quiz-back" onClick={goBack}><ChevronLeft size={18} />Voltar</button>
-        <p className="marketing-kicker">Pergunta {step + 1} de {questions.length}</p>
+        <p className="marketing-kicker">{questions[step].context} · Pergunta {step + 1} de {questions.length}</p>
         <h1>{questions[step].title}</h1>
         <div className="quiz-options">
-          {questions[step].options.map((option) => <button key={option.label} onClick={() => answerQuestion(option.score)}><span>{option.label}</span><ChevronRight size={19} /></button>)}
+          {questions[step].options.map((option) => <button key={option.label} onClick={() => answerQuestion(option)}><span>{option.label}</span><ChevronRight size={19} /></button>)}
         </div>
         <small>Não existe resposta certa. Use a opção que mais se aproxima da sua rotina.</small>
       </div>
       <aside className="quiz-visual">
         <p>{questions[step].context}</p>
         <img src="/clic-med-dashboard.png" alt="Demonstração da organização dentro do Clic Med" />
-        <div><ShieldCheck size={18} /><span><b>Diagnóstico rápido</b><small>Leva menos de 2 minutos</small></span></div>
+        <div><CircleCheck size={18} /><span><b>O que esta etapa revela</b><small>{questions[step].visualText}</small></span></div>
       </aside>
     </section> : <section className="quiz-result">
       <div className="quiz-result-copy">
-        <span className={`quiz-result-label ${result.tone}`}>{result.label}</span>
+        <span className={`quiz-result-label ${profile.tone}`}>{profile.label}</span>
         <p className="marketing-kicker">Seu resultado</p>
-        <h1>{result.title}</h1>
-        <p>{result.text}</p>
-        <div className="quiz-score"><div><span>Nível de tarefas manuais</span><strong>{score}%</strong></div><div><i style={{ width: `${score}%` }} /></div></div>
-        <ul><li><Check size={17} />Cadastro e agenda conectados</li><li><Check size={17} />Acompanhamento de pagamentos</li><li><Check size={17} />Relatórios financeiros por período</li></ul>
+        <h1>{focus.title}</h1>
+        <p>{focus.text}</p>
+        <div className="quiz-score"><div><span>Potencial de simplificação</span><strong>{score}%</strong></div><div><i style={{ width: `${score}%` }} /></div></div>
+        <div className="quiz-focus-label"><span>Gargalo principal</span><strong>{focus.label}</strong></div>
+        <ul>{focus.bullets.map((item) => <li key={item}><Check size={17} />{item}</li>)}</ul>
         <div className="quiz-offer"><span>Seu benefício para começar</span><strong>3 dias grátis</strong><small>Depois, R$ 67 por mês. Cancele quando quiser.</small></div>
-        <button className="quiz-primary" onClick={() => startTrial(`quiz_resultado_${result.tone}`)}>Testar o Clic Med por 3 dias <ArrowRight size={18} /></button>
+        <button className="quiz-primary" onClick={() => startTrial(`quiz_resultado_${profile.tone}_${focusArea}`)}>Testar o Clic Med por 3 dias <ArrowRight size={18} /></button>
         <button className="quiz-restart" onClick={restart}>Refazer diagnóstico</button>
       </div>
-      <div className="quiz-result-product"><img src="/clic-med-dashboard.png" alt="Agenda organizada no Clic Med" /><div><CircleCheck size={20} /><span><b>Seu primeiro ganho rápido</b><small>Cadastre um paciente e veja a sessão entrar na agenda.</small></span></div></div>
+      <div className="quiz-result-product"><img src="/clic-med-dashboard.png" alt="Agenda organizada no Clic Med" /><div><CircleCheck size={20} /><span><b>Seu primeiro ganho rápido</b><small>{focus.quickWin}</small></span></div></div>
     </section>}
   </main>;
 }
