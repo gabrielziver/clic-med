@@ -109,6 +109,19 @@ function emptyPatient() {
   };
 }
 
+function emptyCancellationSurvey() {
+  return {
+    cancellation_reason: "",
+    discovery_source: "",
+    ease_rating: 0,
+    satisfaction_rating: 0,
+    used_areas: [],
+    most_useful: "",
+    improvement: "",
+    recommendation: "",
+  };
+}
+
 function newAppointmentDraft(date = dateKey(new Date()), time = "09:00") {
   return { id: crypto.randomUUID(), date, time };
 }
@@ -503,10 +516,10 @@ function DashboardApp() {
     return true;
   }
 
-  async function cancelSubscription() {
+  async function cancelSubscription(survey) {
     setBillingBusy(true);
     setError("");
-    const { data, error: functionError } = await supabase.functions.invoke("cancel-subscription", { body: {} });
+    const { data, error: functionError } = await supabase.functions.invoke("cancel-subscription", { body: { survey } });
     setBillingBusy(false);
     if (functionError || !data?.cancel_at_period_end) {
       setError(data?.error || functionError?.message || "Não foi possível cancelar a assinatura.");
@@ -767,9 +780,85 @@ function PatientsView({ view, setView, patients, search, setSearch, statusFilter
   </section>;
 }
 
+function CancellationSurveyModal({ busy, periodEnd, onClose, onSubmit }) {
+  const [survey, setSurvey] = useState(emptyCancellationSurvey);
+  const reasons = [
+    ["uso_baixo", "Não estou usando o suficiente"],
+    ["recurso_ausente", "Senti falta de alguma função"],
+    ["preco", "O valor não cabe no momento"],
+    ["dificuldade", "Tive dificuldade para usar"],
+    ["pausa_temporaria", "Vou pausar os atendimentos"],
+    ["outro", "Outro motivo"],
+  ];
+  const sources = [
+    ["instagram", "Instagram ou Facebook"],
+    ["google", "Pesquisa no Google"],
+    ["indicacao", "Indicação de alguém"],
+    ["outro", "Outro canal"],
+  ];
+  const areas = ["Agenda", "Pacientes", "Financeiro", "Relatórios"];
+
+  function update(key, value) {
+    setSurvey((current) => ({ ...current, [key]: value }));
+  }
+
+  function toggleArea(area) {
+    setSurvey((current) => ({
+      ...current,
+      used_areas: current.used_areas.includes(area) ? current.used_areas.filter((item) => item !== area) : [...current.used_areas, area],
+    }));
+  }
+
+  function submit(event) {
+    event.preventDefault();
+    onSubmit(survey);
+  }
+
+  return <Modal title="Antes de cancelar, conte pra gente" subtitle="Leva menos de 2 minutos e ajuda a melhorar o Clic Med." onClose={() => !busy && onClose()}>
+    <form className="cancellation-survey" onSubmit={submit}>
+      <section className="survey-section">
+        <div className="survey-question"><strong>Qual é o principal motivo do cancelamento?</strong><span>Obrigatório</span></div>
+        <div className="survey-choice-grid">
+          {reasons.map(([value, label]) => <label className={survey.cancellation_reason === value ? "selected" : ""} key={value}><input type="radio" name="cancellation_reason" value={value} checked={survey.cancellation_reason === value} onChange={() => update("cancellation_reason", value)} required /><span>{label}</span></label>)}
+        </div>
+      </section>
+
+      <section className="survey-section compact">
+        <div className="survey-question"><strong>Como você conheceu o Clic Med?</strong><span>Opcional</span></div>
+        <div className="survey-choice-grid two-columns">
+          {sources.map(([value, label]) => <label className={survey.discovery_source === value ? "selected" : ""} key={value}><input type="radio" name="discovery_source" value={value} checked={survey.discovery_source === value} onChange={() => update("discovery_source", value)} /><span>{label}</span></label>)}
+        </div>
+      </section>
+
+      <div className="survey-rating-row">
+        <section className="survey-section compact"><div className="survey-question"><strong>Facilidade de uso</strong><span>1 = difícil · 5 = muito fácil</span></div><div className="survey-rating" role="group" aria-label="Facilidade de uso">{[1, 2, 3, 4, 5].map((rating) => <button className={survey.ease_rating === rating ? "selected" : ""} type="button" key={rating} onClick={() => update("ease_rating", rating)}>{rating}</button>)}</div></section>
+        <section className="survey-section compact"><div className="survey-question"><strong>Satisfação geral</strong><span>1 = ruim · 5 = muito satisfeito</span></div><div className="survey-rating" role="group" aria-label="Satisfação geral">{[1, 2, 3, 4, 5].map((rating) => <button className={survey.satisfaction_rating === rating ? "selected" : ""} type="button" key={rating} onClick={() => update("satisfaction_rating", rating)}>{rating}</button>)}</div></section>
+      </div>
+
+      <section className="survey-section compact">
+        <div className="survey-question"><strong>Quais áreas você mais usou?</strong><span>Selecione quantas quiser</span></div>
+        <div className="survey-area-list">{areas.map((area) => <label className={survey.used_areas.includes(area) ? "selected" : ""} key={area}><input type="checkbox" checked={survey.used_areas.includes(area)} onChange={() => toggleArea(area)} /><span>{area}</span></label>)}</div>
+      </section>
+
+      <section className="survey-text-grid">
+        <label>O que foi mais útil?<textarea rows="3" maxLength="600" value={survey.most_useful} onChange={(event) => update("most_useful", event.target.value)} placeholder="Conte o que mais ajudou na sua rotina" /></label>
+        <label>O que faltou ou poderia melhorar?<textarea rows="3" maxLength="600" value={survey.improvement} onChange={(event) => update("improvement", event.target.value)} placeholder="Uma função, dificuldade ou sugestão" /></label>
+      </section>
+
+      <section className="survey-section compact">
+        <div className="survey-question"><strong>Você recomendaria o Clic Med?</strong><span>Opcional</span></div>
+        <div className="survey-recommendation">{[["sim", "Sim"], ["talvez", "Talvez"], ["nao", "Não"]].map(([value, label]) => <button className={survey.recommendation === value ? "selected" : ""} type="button" key={value} onClick={() => update("recommendation", value)}>{label}</button>)}</div>
+      </section>
+
+      <div className="survey-cancellation-note"><strong>Seu acesso continuará até {periodEnd}.</strong><span>Não haverá nova cobrança nem reembolso do período atual.</span></div>
+      <div className="survey-actions"><button className="secondary-button" type="button" disabled={busy} onClick={() => onSubmit({ skipped: true })}>Pular pesquisa</button><button className="primary-button danger" disabled={busy || !survey.cancellation_reason}>{busy ? "Cancelando..." : "Enviar e continuar cancelamento"}</button></div>
+    </form>
+  </Modal>;
+}
+
 function ProfileView({ user, subscription, grant, isOwner, busy, onSaveName, onCancelSubscription, onLogout }) {
   const [name, setName] = useState(user.user_metadata?.full_name || "");
-  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [showCancellationSurvey, setShowCancellationSurvey] = useState(false);
   const active = subscriptionActive(subscription);
   const status = isOwner ? "Proprietário" : subscriptionLabels[subscription?.status] || "Acesso temporário";
   const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("pt-BR") : "—";
@@ -781,8 +870,8 @@ function ProfileView({ user, subscription, grant, isOwner, busy, onSaveName, onC
     await onSaveName(name);
   }
 
-  async function confirmCancellation() {
-    if (await onCancelSubscription()) setConfirmCancel(false);
+  async function confirmCancellation(survey) {
+    if (await onCancelSubscription(survey)) setShowCancellationSurvey(false);
   }
 
   return <div className="profile-layout">
@@ -801,9 +890,9 @@ function ProfileView({ user, subscription, grant, isOwner, busy, onSaveName, onC
       <div><span className="subscription-kicker">{isOwner ? "Clic Med Proprietário" : active ? "Clic Med Mensal" : "Acesso Clic Med"}</span><h2>{isOwner ? "Acesso permanente" : active ? "R$ 67,00 por mês" : "Acesso temporário"}</h2><p>{isOwner ? "Sua conta administrativa não depende de cobrança." : active ? "Agenda, pacientes, financeiro e relatórios em um único plano." : `Acesso liberado até ${grantEnd}.`}</p></div>
       <dl><div><dt>{subscription?.cancel_at_period_end ? "Acesso disponível até" : "Próxima renovação"}</dt><dd>{isOwner ? "Permanente" : active ? periodEnd : grantEnd}</dd></div><div><dt>Cancelamento</dt><dd>{isOwner ? "Não se aplica" : subscription?.cancel_at_period_end ? "Agendado" : "Não agendado"}</dd></div></dl>
       {subscription?.cancel_at_period_end && <p className="cancellation-note">A assinatura não será renovada. Seu acesso continua normalmente até {periodEnd}.</p>}
-      {canCancel && !confirmCancel && <button className="secondary-button danger wide" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancelar assinatura</button>}
-      {confirmCancel && <div className="cancel-confirm"><strong>Confirmar cancelamento?</strong><p>O plano será encerrado em {periodEnd}. Não haverá reembolso, e o acesso continuará até essa data.</p><div><button className="secondary-button" disabled={busy} onClick={() => setConfirmCancel(false)}>Voltar</button><button className="primary-button danger" disabled={busy} onClick={confirmCancellation}>{busy ? "Cancelando..." : "Confirmar cancelamento"}</button></div></div>}
+      {canCancel && <button className="secondary-button danger wide" disabled={busy} onClick={() => setShowCancellationSurvey(true)}>Cancelar assinatura</button>}
     </section>
+    {showCancellationSurvey && <CancellationSurveyModal busy={busy} periodEnd={periodEnd} onClose={() => setShowCancellationSurvey(false)} onSubmit={confirmCancellation} />}
   </div>;
 }
 

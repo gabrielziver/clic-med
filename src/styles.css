@@ -250,6 +250,38 @@ i.present { background: var(--green); } i.charged-absence { background: var(--bl
 .profile-details, .profile-plan { padding: 24px; }.profile-details { display: grid; gap: 24px; }.profile-details header { align-items: center; display: flex; gap: 13px; }.profile-details header p, .profile-plan p { color: var(--muted); line-height: 1.5; margin: 0; }.profile-avatar { align-items: center; background: var(--blue-soft); border-radius: 7px; color: var(--blue); display: flex; height: 48px; justify-content: center; width: 48px; }.profile-details form { display: grid; gap: 16px; }.profile-details input[readonly] { background: var(--soft); color: var(--muted); cursor: default; }.profile-details form .primary-button { justify-self: start; }.profile-logout { justify-self: start; }
 .profile-plan { align-content: start; display: grid; gap: 22px; }.profile-plan > header { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding-bottom: 16px; }.profile-plan > header span { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }.profile-plan > header strong { border-radius: 999px; font-size: 11px; padding: 6px 9px; }.profile-plan > header strong.active { background: var(--green-soft); color: #087353; }.profile-plan > header strong.inactive { background: var(--amber-soft); color: #9b5e03; }.profile-plan .subscription-kicker { color: var(--blue); display: block; font-size: 12px; font-weight: 850; margin-bottom: 8px; text-transform: uppercase; }.profile-plan h2 { font-size: 27px; margin-bottom: 8px; }.profile-plan dl { border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); display: grid; margin: 0; }.profile-plan dl div { display: flex; gap: 20px; justify-content: space-between; padding: 14px 0; }.profile-plan dl div + div { border-top: 1px solid var(--line); }.profile-plan dt { color: var(--muted); }.profile-plan dd { font-weight: 800; margin: 0; text-align: right; }.cancellation-note { background: var(--amber-soft); border: 1px solid #efd99e; border-radius: 7px; padding: 12px; }.cancel-confirm { background: var(--red-soft); border: 1px solid #f2c8c5; border-radius: 7px; display: grid; gap: 9px; padding: 15px; }.cancel-confirm p { color: #7d3834; }.cancel-confirm > div { display: flex; gap: 9px; justify-content: flex-end; }.primary-button.danger { background: var(--red); border-color: var(--red); }
 
+.cancellation-survey { display: grid; gap: 22px; }
+.survey-section { display: grid; gap: 11px; }
+.survey-section.compact { gap: 9px; }
+.survey-question { align-items: baseline; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.survey-question strong { font-size: 15px; }
+.survey-question > span { color: var(--muted); font-size: 10px; }
+.survey-choice-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.survey-choice-grid.two-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.survey-choice-grid label,
+.survey-area-list label { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; cursor: pointer; display: flex; gap: 9px; min-height: 48px; padding: 10px 12px; }
+.survey-choice-grid label.selected,
+.survey-area-list label.selected { background: var(--blue-soft); border-color: #8fb2ef; color: #174da8; }
+.survey-choice-grid input,
+.survey-area-list input { accent-color: var(--blue); flex: 0 0 auto; height: 16px; margin: 0; width: 16px; }
+.survey-choice-grid label span,
+.survey-area-list label span { font-size: 12px; font-weight: 700; line-height: 1.35; }
+.survey-rating-row { display: grid; gap: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.survey-rating { display: grid; gap: 7px; grid-template-columns: repeat(5, 42px); }
+.survey-rating button,
+.survey-recommendation button { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; color: var(--text); font-weight: 800; min-height: 42px; padding: 0; }
+.survey-rating button.selected,
+.survey-recommendation button.selected { background: var(--navy); border-color: var(--navy); color: #fff; }
+.survey-area-list { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.survey-text-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.survey-text-grid label { display: grid; font-size: 13px; font-weight: 800; gap: 7px; }
+.survey-text-grid textarea { min-height: 92px; resize: vertical; }
+.survey-recommendation { display: grid; gap: 8px; grid-template-columns: repeat(3, 110px); }
+.survey-recommendation button { padding: 0 12px; }
+.survey-cancellation-note { background: var(--amber-soft); border: 1px solid #efd99e; border-radius: 7px; color: #6f5313; display: grid; font-size: 12px; gap: 3px; padding: 12px 14px; }
+.survey-actions { align-items: center; background: var(--surface); border-top: 1px solid var(--line); bottom: -20px; display: flex; gap: 9px; justify-content: flex-end; margin: 0 -20px; padding: 15px 20px; position: sticky; z-index: 1; }
+.survey-actions .primary-button { min-width: 250px; }
+
 .modal-layer { align-items: center; background: rgba(17, 28, 45, .56); display: flex; inset: 0; justify-content: center; padding: 20px; position: fixed; z-index: 100; }
 .modal { background: var(--surface); border-radius: 8px; box-shadow: var(--shadow); max-height: calc(100vh - 40px); max-width: 800px; overflow-y: auto; width: 100%; }
 .modal-head { align-items: flex-start; background: var(--surface); border-bottom: 1px solid var(--line); display: flex; gap: 18px; justify-content: space-between; padding: 18px 20px; position: sticky; top: 0; z-index: 2; }
@@ -303,6 +335,16 @@ i.present { background: var(--green); } i.charged-absence { background: var(--bl
   .chart-legend { width: 100%; }
   .modal-layer { align-items: flex-end; padding: 0; }
   .modal { border-radius: 8px 8px 0 0; max-height: 93vh; }
+  .survey-choice-grid,
+  .survey-choice-grid.two-columns,
+  .survey-rating-row,
+  .survey-text-grid { grid-template-columns: 1fr; }
+  .survey-area-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .survey-rating { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .survey-recommendation { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .survey-actions { align-items: stretch; flex-direction: column-reverse; }
+  .survey-actions .primary-button,
+  .survey-actions .secondary-button { min-width: 0; width: 100%; }
   .subtabs, .form-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .auth-page { padding: 0; }
   .auth-shell { border: 0; grid-template-columns: 1fr; min-height: 100vh; }

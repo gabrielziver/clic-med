@@ -31,6 +31,23 @@ create table if not exists public.stripe_subscriptions (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.cancellation_surveys (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  subscription_id uuid references public.stripe_subscriptions(id) on delete set null,
+  email citext not null,
+  cancellation_reason text,
+  discovery_source text,
+  ease_rating smallint check (ease_rating between 1 and 5),
+  satisfaction_rating smallint check (satisfaction_rating between 1 and 5),
+  used_areas text[] not null default '{}',
+  most_useful text,
+  improvement text,
+  recommendation text check (recommendation in ('sim', 'talvez', 'nao')),
+  skipped boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
@@ -85,10 +102,13 @@ create index if not exists appointments_user_starts_idx on public.appointments(u
 create index if not exists appointments_patient_id_idx on public.appointments(patient_id);
 create index if not exists stripe_subscriptions_customer_idx on public.stripe_subscriptions(stripe_customer_id);
 create index if not exists stripe_subscriptions_status_idx on public.stripe_subscriptions(status, current_period_end);
+create index if not exists cancellation_surveys_created_idx on public.cancellation_surveys(created_at desc);
+create index if not exists cancellation_surveys_user_idx on public.cancellation_surveys(user_id);
 
 alter table public.profiles enable row level security;
 alter table public.access_grants enable row level security;
 alter table public.stripe_subscriptions enable row level security;
+alter table public.cancellation_surveys enable row level security;
 alter table public.patients enable row level security;
 alter table public.appointments enable row level security;
 
@@ -133,6 +153,7 @@ grant execute on function public.is_platform_owner() to authenticated;
 grant execute on function public.has_active_access() to authenticated;
 grant select, insert, update, delete on public.access_grants to authenticated;
 grant select on public.stripe_subscriptions to authenticated;
+grant select on public.cancellation_surveys to authenticated;
 
 drop policy if exists "access_grants_select" on public.access_grants;
 create policy "access_grants_select" on public.access_grants for select to authenticated
@@ -161,6 +182,10 @@ using (
   or lower(email::text) = lower(coalesce((select auth.jwt() ->> 'email'), ''))
   or public.is_platform_owner()
 );
+
+drop policy if exists "cancellation_surveys_owner_select" on public.cancellation_surveys;
+create policy "cancellation_surveys_owner_select" on public.cancellation_surveys for select to authenticated
+using (public.is_platform_owner());
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select to authenticated
