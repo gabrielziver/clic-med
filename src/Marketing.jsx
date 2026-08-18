@@ -20,7 +20,6 @@ const questions = [
   {
     title: "Em qual momento profissional você está hoje?",
     context: "Seu momento atual",
-    visualText: "Entender o tamanho da rotina ajuda a mostrar onde a organização pode gerar valor primeiro.",
     options: [
       { label: "Estou organizando meus primeiros atendimentos", score: 0 },
       { label: "Atendo sozinho e minha agenda está crescendo", score: 1 },
@@ -31,7 +30,6 @@ const questions = [
   {
     title: "Quantas sessões você realiza por semana, em média?",
     context: "Volume de atendimentos",
-    visualText: "Quanto mais sessões acontecem, mais importante fica manter agenda e financeiro conectados.",
     options: [
       { label: "Até 10 sessões", score: 0 },
       { label: "De 11 a 25 sessões", score: 1 },
@@ -42,7 +40,6 @@ const questions = [
   {
     title: "Onde ficam as informações do seu consultório hoje?",
     context: "Organização da rotina",
-    visualText: "Centralizar não é mudar seu jeito de atender. É deixar de repetir a mesma informação.",
     options: [
       { label: "Uso um sistema, mas ainda mantenho controles por fora", score: 1, area: "base", areaWeight: 1 },
       { label: "Uso planilha para pacientes e financeiro", score: 2, area: "finance", areaWeight: 2 },
@@ -53,7 +50,6 @@ const questions = [
   {
     title: "Qual tarefa mais consome sua atenção durante a semana?",
     context: "Principal ponto de atrito",
-    visualText: "Seu resultado vai priorizar o gargalo que mais disputa tempo com os atendimentos.",
     options: [
       { label: "Conferir horários, faltas e reagendamentos", score: 2, area: "agenda", areaWeight: 7 },
       { label: "Saber quem pagou e o que está pendente", score: 3, area: "finance", areaWeight: 7 },
@@ -64,7 +60,6 @@ const questions = [
   {
     title: "Quando alguém falta ou reagenda, como você atualiza a rotina?",
     context: "Mudanças do dia a dia",
-    visualText: "Uma única alteração deveria atualizar o restante da gestão sem criar uma nova conferência.",
     options: [
       { label: "Faço uma atualização manual em um único lugar", score: 1, area: "agenda", areaWeight: 1 },
       { label: "Corrijo a agenda e confiro o restante depois", score: 2, area: "agenda", areaWeight: 2 },
@@ -75,7 +70,6 @@ const questions = [
   {
     title: "Qual mudança você mais quer perceber nos próximos três meses?",
     context: "Resultado desejado",
-    visualText: "O melhor sistema é aquele que melhora uma parte visível da rotina logo nos primeiros usos.",
     options: [
       { label: "Enxergar a semana com horários e mudanças organizados", score: 2, area: "agenda", areaWeight: 1 },
       { label: "Saber o que entrou e o que está pendente sem fechar planilha", score: 3, area: "finance", areaWeight: 1 },
@@ -99,28 +93,24 @@ const focusResults = {
     title: "Sua agenda é o ponto que mais pede simplificação.",
     text: "Horários, faltas e reagendamentos ainda exigem conferências que poderiam acontecer em um único fluxo.",
     bullets: ["Sessões criadas a partir do cadastro", "Horários flexíveis e status por atendimento", "Alterações refletidas na visão da rotina"],
-    quickWin: "Cadastre um paciente e veja a sessão entrar automaticamente na agenda.",
   },
   finance: {
     label: "Visibilidade financeira",
     title: "Seu financeiro precisa acompanhar as sessões sem depender de fechamento manual.",
     text: "A maior oportunidade está em transformar atendimentos e pagamentos em uma visão clara do período.",
     bullets: ["Pagamentos e pendências por paciente", "Totais atualizados conforme as sessões", "Relatórios financeiros por dia ou mês"],
-    quickWin: "Marque um pagamento e veja o valor entrar no resumo financeiro.",
   },
   patients: {
     label: "Pacientes e informações",
     title: "As informações dos pacientes ainda estão exigindo buscas e repetições.",
     text: "Centralizar cadastro, contatos e histórico reduz o trabalho de procurar dados antes e depois de cada sessão.",
     bullets: ["Cadastro administrativo em um só lugar", "Prontuário acessível a partir da agenda", "Dados conectados às sessões e ao financeiro"],
-    quickWin: "Abra um paciente pela agenda e encontre os dados da rotina em uma única tela.",
   },
   base: {
     label: "Rotina conectada",
     title: "Sua maior oportunidade está em fazer a gestão trabalhar como um único fluxo.",
     text: "A rotina já acontece, mas partes importantes ainda vivem separadas e dependem de atualização manual.",
     bullets: ["Cadastro e agenda conectados", "Sessões ligadas ao controle financeiro", "Informações atualizadas sem retrabalho"],
-    quickWin: "Cadastre um paciente uma vez e acompanhe agenda e financeiro a partir dele.",
   },
 };
 
@@ -342,11 +332,6 @@ export function QuizPage() {
         </div>
         <small>Não existe resposta certa. Use a opção que mais se aproxima da sua rotina.</small>
       </div>
-      <aside className="quiz-visual">
-        <p>{questions[step].context}</p>
-        <img src="/clic-med-dashboard.png" alt="Demonstração da organização dentro do Clic Med" />
-        <div><CircleCheck size={18} /><span><b>O que esta etapa revela</b><small>{questions[step].visualText}</small></span></div>
-      </aside>
     </section> : <section className="quiz-result">
       <div className="quiz-result-copy">
         <span className={`quiz-result-label ${profile.tone}`}>{profile.label}</span>
@@ -360,7 +345,6 @@ export function QuizPage() {
         <button className="quiz-primary" onClick={() => startTrial(`quiz_resultado_${profile.tone}_${focusArea}`)}>Testar o Clic Med por 3 dias <ArrowRight size={18} /></button>
         <button className="quiz-restart" onClick={restart}>Refazer diagnóstico</button>
       </div>
-      <div className="quiz-result-product"><img src="/clic-med-dashboard.png" alt="Agenda organizada no Clic Med" /><div><CircleCheck size={20} /><span><b>Seu primeiro ganho rápido</b><small>{focus.quickWin}</small></span></div></div>
     </section>}
   </main>;
 }
