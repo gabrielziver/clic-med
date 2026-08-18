@@ -119,6 +119,7 @@ function nextAppointmentDraft(current) {
 
 function AccessScreen({ email, grant, subscription, busy, onSubscribe, onManage, onRefresh, onLogout }) {
   const expired = grant?.expires_at && new Date(grant.expires_at) <= new Date();
+  const paymentPending = subscription?.status === "checkout_pending";
   const canManage = subscriptionManageable(subscription);
   const status = subscriptionLabels[subscription?.status] || "Sem assinatura";
   return (
@@ -126,16 +127,15 @@ function AccessScreen({ email, grant, subscription, busy, onSubscribe, onManage,
       <section className="access-card">
         <Brand />
         <div className="access-icon"><ShieldCheck size={28} /></div>
-        <h1>{subscription?.status === "past_due" ? "Pagamento pendente" : expired ? "Seu acesso expirou" : "Ative seu acesso"}</h1>
-        <p>{subscription?.status === "past_due" ? "Atualize o pagamento para continuar usando o Clic Med." : "Assine o plano mensal ou aguarde uma liberação de cortesia do administrador."}</p>
+        <h1>{paymentPending ? "Confirmando seu pagamento" : subscription?.status === "past_due" ? "Pagamento pendente" : expired ? "Seu acesso expirou" : "Ative seu acesso"}</h1>
+        <p>{paymentPending ? "A Stripe está processando sua assinatura. Você não precisa iniciar outro teste." : subscription?.status === "past_due" ? "Atualize o pagamento para continuar usando o Clic Med." : "Comece o teste gratuito para liberar o sistema automaticamente."}</p>
         <div className="access-plan">
           <div><span>Plano Clic Med</span><strong>R$ 67,00 <small>/ mês</small></strong><p>3 dias gratuitos. Cancele quando quiser.</p></div>
           <em className={subscriptionActive(subscription) ? "active" : "inactive"}>{status}</em>
         </div>
-        <button className="primary-button wide" disabled={busy} onClick={canManage ? onManage : onSubscribe}><CreditCard size={18} />{busy ? "Abrindo..." : canManage ? "Gerenciar pagamento" : "Começar teste gratuito"}</button>
-        <button className="secondary-button wide" disabled={busy} onClick={onRefresh}><RefreshCw size={17} />Já concluí o pagamento</button>
+        {paymentPending ? <button className="primary-button wide" disabled={busy} onClick={onRefresh}><RefreshCw size={18} />{busy ? "Verificando..." : "Verificar acesso"}</button> : <button className="primary-button wide" disabled={busy} onClick={canManage ? onManage : onSubscribe}><CreditCard size={18} />{busy ? "Abrindo..." : canManage ? "Gerenciar pagamento" : "Começar teste gratuito"}</button>}
         <div className="access-account"><span>Conta conectada</span><strong>{email}</strong>{grant?.expires_at && <small>Validade anterior: {new Date(grant.expires_at).toLocaleDateString("pt-BR")}</small>}</div>
-        <button className="secondary-button wide" onClick={onLogout}><LogOut size={17} />Sair desta conta</button>
+        <button className="secondary-button wide" onClick={onLogout}><LogOut size={17} />Entrar com outra conta</button>
       </section>
     </main>
   );
@@ -414,6 +414,11 @@ function DashboardApp() {
     return () => { canceled = true; };
   }, [session]);
   useEffect(() => {
+    if (!session || accessAllowed || currentSubscription?.status !== "checkout_pending") return undefined;
+    const timer = setInterval(() => checkAccess(session, true), 3000);
+    return () => clearInterval(timer);
+  }, [session, accessAllowed, currentSubscription?.status]);
+  useEffect(() => {
     if (!session || !accessAllowed || session.user.email?.toLowerCase() === OWNER_EMAIL) return undefined;
     const timer = setInterval(async () => {
       const { data } = await supabase.rpc("has_active_access");
@@ -427,8 +432,8 @@ function DashboardApp() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  async function checkAccess(activeSession) {
-    setAccessLoading(true);
+  async function checkAccess(activeSession, background = false) {
+    if (!background) setAccessLoading(true);
     setError("");
     const owner = activeSession.user.email?.toLowerCase() === OWNER_EMAIL;
     if (!owner && activeTab === "acessos") setActiveTab("agenda");
@@ -439,7 +444,7 @@ function DashboardApp() {
         : supabase.from("access_grants").select("email, active, starts_at, expires_at").eq("email", activeSession.user.email).maybeSingle(),
       supabase.from("stripe_subscriptions").select("*").or(`user_id.eq.${activeSession.user.id},email.eq.${activeSession.user.email?.toLowerCase()}`).limit(1).maybeSingle(),
     ]);
-    setAccessLoading(false);
+    if (!background) setAccessLoading(false);
     if (accessResult.error || grantResult.error || subscriptionResult.error) {
       setError(accessResult.error?.message || grantResult.error?.message || subscriptionResult.error?.message);
       setAccessAllowed(false);
