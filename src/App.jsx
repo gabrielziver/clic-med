@@ -58,6 +58,39 @@ function subscriptionManageable(subscription) {
     && ["trialing", "active", "past_due", "unpaid", "paused", "incomplete"].includes(subscription.status);
 }
 
+function friendlyError(error, fallback = "Não foi possível concluir a ação. Tente novamente.") {
+  const message = typeof error === "string" ? error : error?.message || "";
+  const normalized = message.toLowerCase();
+  if (!message) return fallback;
+  if (normalized.includes("load failed") || normalized.includes("failed to fetch") || normalized.includes("networkerror") || normalized.includes("network request failed")) {
+    return "Não conseguimos conectar ao servidor. Verifique sua internet e tente novamente.";
+  }
+  if (normalized.includes("invalid input syntax for type date") || normalized.includes("date/time field value out of range")) {
+    return "Revise as datas informadas. Campos de data opcionais podem ficar em branco.";
+  }
+  if (normalized.includes("duplicate key") || normalized.includes("unique constraint")) {
+    return "Este registro já existe. Revise os dados e tente novamente.";
+  }
+  if (normalized.includes("violates check constraint") || normalized.includes("violates not-null constraint") || normalized.includes("null value in column")) {
+    return "Revise os campos obrigatórios e os valores informados.";
+  }
+  if (normalized.includes("jwt") || normalized.includes("session") && normalized.includes("expired")) {
+    return "Sua sessão expirou. Entre novamente para continuar.";
+  }
+  if (normalized.includes("row-level security") || normalized.includes("permission denied")) {
+    return "Você não tem permissão para concluir esta ação. Atualize a página ou entre novamente.";
+  }
+  return fallback;
+}
+
+function sortPatients(items) {
+  return [...items].sort((first, second) => first.full_name.localeCompare(second.full_name, "pt-BR"));
+}
+
+function sortAppointments(items) {
+  return [...items].sort((first, second) => new Date(first.starts_at) - new Date(second.starts_at));
+}
+
 function dateKey(value) {
   const date = value instanceof Date ? value : new Date(value);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -148,7 +181,7 @@ function AccessScreen({ email, grant, subscription, busy, onSubscribe, onManage,
           <div><span>Plano Clic Med</span><strong>R$ 67,00 <small>/ mês</small></strong><p>3 dias gratuitos. Cancele quando quiser.</p></div>
           <em className={subscriptionActive(subscription) ? "active" : "inactive"}>{status}</em>
         </div>
-        {paymentPending ? <button className="primary-button wide" disabled={busy} onClick={onRefresh}><RefreshCw size={18} />{busy ? "Verificando..." : "Verificar acesso"}</button> : <button className="primary-button wide" disabled={busy} onClick={canManage ? onManage : onSubscribe}><CreditCard size={18} />{busy ? "Abrindo..." : canManage ? "Gerenciar pagamento" : "Começar teste gratuito"}</button>}
+        {paymentPending ? <button className="primary-button wide" disabled={busy} onClick={onRefresh}>{busy ? <span className="button-spinner" /> : <RefreshCw size={18} />}{busy ? "Verificando..." : "Verificar acesso"}</button> : <button className="primary-button wide" disabled={busy} onClick={canManage ? onManage : onSubscribe}>{busy ? <span className="button-spinner" /> : <CreditCard size={18} />}{busy ? "Abrindo..." : canManage ? "Gerenciar pagamento" : "Começar teste gratuito"}</button>}
         <div className="access-account"><span>Conta conectada</span><strong>{email}</strong>{grant?.expires_at && <small>Validade anterior: {new Date(grant.expires_at).toLocaleDateString("pt-BR")}</small>}</div>
         <button className="secondary-button wide" onClick={onLogout}><LogOut size={17} />Entrar com outra conta</button>
       </section>
@@ -188,7 +221,7 @@ function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "di
       : await supabase.auth.signUp({ email, password, options: { data: { full_name: name.trim(), signup_origin: signupOrigin } } });
     setBusy(false);
     if (result.error) {
-      setMessage(result.error.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : result.error.message);
+      setMessage(result.error.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : friendlyError(result.error, mode === "login" ? "Não foi possível entrar. Confira os dados e tente novamente." : "Não foi possível criar sua conta. Tente novamente."));
       return;
     }
     if (mode === "signup" && Array.isArray(result.data.user?.identities) && result.data.user.identities.length === 0) {
@@ -231,7 +264,7 @@ function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "di
             <label>E-mail<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="voce@exemplo.com" /></label>
             <label>Senha<span className="password-field"><input type={showPassword ? "text" : "password"} minLength="6" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="Mínimo de 6 caracteres" /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>
             {message && <p className="form-message" role="status">{message}</p>}
-            <button className="primary-button wide" disabled={busy}>{busy ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}</button>
+            <button className="primary-button wide" disabled={busy}>{busy && <span className="button-spinner" />}{busy ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}</button>
           </form>
         </div>
       </section>
@@ -308,20 +341,29 @@ function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar
   const [form, setForm] = useState(() => ({ ...emptyPatient(), ...initial, schedule_text: initial?.schedule?.join(", ") || initial?.schedule_text || "" }));
   const [addToAgenda, setAddToAgenda] = useState(!initial);
   const [appointmentDrafts, setAppointmentDrafts] = useState(() => [newAppointmentDraft(defaultAppointmentDate, defaultAppointmentTime)]);
+  const [formError, setFormError] = useState("");
   function update(key, value) { setForm((current) => ({ ...current, [key]: value })); }
   function updateDraft(id, key, value) {
     setAppointmentDrafts((current) => current.map((item) => item.id === id ? { ...item, [key]: value } : item));
   }
   function submit(event) {
     event.preventDefault();
+    setFormError("");
+    const totalSessions = Number(form.sessions_total);
+    const completedSessions = Number(form.sessions_completed);
+    if (!form.full_name.trim()) { setFormError("Informe o nome completo do paciente."); return; }
+    if (!form.therapies.trim()) { setFormError("Informe a terapia ou o tipo de acompanhamento."); return; }
+    if (!Number.isFinite(totalSessions) || totalSessions < 1) { setFormError("O total de sessões deve ser pelo menos 1."); return; }
+    if (!Number.isFinite(completedSessions) || completedSessions < 0) { setFormError("As sessões realizadas não podem ser negativas."); return; }
+    if (addToAgenda && appointmentDrafts.some(({ date, time }) => !date || !time)) { setFormError("Preencha a data e o horário de todas as sessões."); return; }
     const initialAppointments = addToAgenda ? appointmentDrafts.map(({ date, time }) => ({ date, time })) : [];
     const typedSchedule = form.schedule_text.split(/[,;\n]+/).map((item) => item.trim()).filter(Boolean);
     onSave({
       ...form,
       weekly_sessions: Number(form.weekly_sessions),
       session_value: Number(form.session_value),
-      sessions_completed: Math.min(Number(form.sessions_completed), Number(form.sessions_total)),
-      sessions_total: Number(form.sessions_total),
+      sessions_completed: Math.min(completedSessions, totalSessions),
+      sessions_total: totalSessions,
       schedule: typedSchedule.length ? typedSchedule : initialAppointments.map((item) => `${formatDate(item.date)} ${item.time}`),
       initial_appointments: initialAppointments,
     });
@@ -369,7 +411,8 @@ function PatientForm({ initial, onSave, onCancel, busy, submitLabel = "Cadastrar
           <label className="full">Observações administrativas<textarea value={form.administrative_notes || ""} onChange={(e) => update("administrative_notes", e.target.value)} /></label>
         </div>
       </section>
-      <div className="form-actions"><button type="button" className="secondary-button" onClick={onCancel}>Cancelar</button><button className="primary-button" disabled={busy}>{busy ? "Salvando..." : submitLabel}</button></div>
+      {formError && <p className="inline-form-error" role="alert">{formError}</p>}
+      <div className="form-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onCancel}>Cancelar</button><button className="primary-button" disabled={busy}>{busy && <span className="button-spinner" />}{busy ? "Salvando..." : submitLabel}</button></div>
     </form>
   );
 }
@@ -461,14 +504,15 @@ function DashboardApp() {
     ]);
     if (!background) setAccessLoading(false);
     if (accessResult.error || grantResult.error || subscriptionResult.error) {
-      setError(accessResult.error?.message || grantResult.error?.message || subscriptionResult.error?.message);
+      setError(friendlyError(accessResult.error || grantResult.error || subscriptionResult.error, "Não foi possível verificar seu acesso. Tente atualizar a página."));
       setAccessAllowed(false);
-      return;
+      return false;
     }
     setCurrentGrant(grantResult.data || null);
     setCurrentSubscription(subscriptionResult.data || null);
     setAccessAllowed(Boolean(accessResult.data));
     if (accessResult.data) await loadData(owner);
+    return Boolean(accessResult.data);
   }
 
   async function loadData(owner = session?.user.email?.toLowerCase() === OWNER_EMAIL) {
@@ -482,7 +526,7 @@ function DashboardApp() {
     ]);
     setDataLoading(false);
     if (patientResult.error || appointmentResult.error || grantsResult.error || subscriptionsResult.error) {
-      setError(patientResult.error?.message || appointmentResult.error?.message || grantsResult.error?.message || subscriptionsResult.error?.message);
+      setError(friendlyError(patientResult.error || appointmentResult.error || grantsResult.error || subscriptionsResult.error, "Não foi possível carregar os dados. Atualize a página para tentar novamente."));
       return;
     }
     setPatients(patientResult.data || []);
@@ -497,7 +541,7 @@ function DashboardApp() {
     const { data, error: functionError } = await supabase.functions.invoke(functionName, { body: {} });
     setBillingBusy(false);
     if (functionError || !data?.url) {
-      setError(data?.error || functionError?.message || "Não foi possível abrir a Stripe.");
+      setError(data?.error || friendlyError(functionError, "Não foi possível abrir a Stripe agora. Tente novamente."));
       return;
     }
     window.location.assign(data.url);
@@ -510,7 +554,7 @@ function DashboardApp() {
     setError("");
     const { data, error: profileError } = await supabase.auth.updateUser({ data: { full_name: normalizedName } });
     setBusy(false);
-    if (profileError) { setError(profileError.message); return false; }
+    if (profileError) { setError(friendlyError(profileError, "Não foi possível atualizar o nome.")); return false; }
     setSession((current) => current ? { ...current, user: data.user } : current);
     setToast("Nome atualizado.");
     return true;
@@ -522,7 +566,7 @@ function DashboardApp() {
     const { data, error: functionError } = await supabase.functions.invoke("cancel-subscription", { body: { survey } });
     setBillingBusy(false);
     if (functionError || !data?.cancel_at_period_end) {
-      setError(data?.error || functionError?.message || "Não foi possível cancelar a assinatura.");
+      setError(data?.error || friendlyError(functionError, "Não foi possível cancelar a assinatura agora. Tente novamente."));
       return false;
     }
     setToast("Cancelamento agendado. Seu acesso continua até o fim do período pago.");
@@ -535,50 +579,62 @@ function DashboardApp() {
     setError("");
     const startsAt = new Date();
     const expiresAt = new Date(startsAt.getTime() + Number(days) * 86400000);
-    const { error: grantError } = await supabase.from("access_grants").upsert({
+    const { data: savedGrant, error: grantError } = await supabase.from("access_grants").upsert({
       email: email.trim().toLowerCase(),
       active: true,
       starts_at: startsAt.toISOString(),
       expires_at: expiresAt.toISOString(),
       notes: notes.trim() || null,
       created_by: session.user.id,
-    }, { onConflict: "email" });
+    }, { onConflict: "email" }).select("*").single();
     setBusy(false);
-    if (grantError) { setError(grantError.message); return false; }
+    if (grantError) { setError(friendlyError(grantError, "Não foi possível liberar o acesso.")); return false; }
+    setAccessGrants((current) => [savedGrant, ...current.filter((grant) => grant.id !== savedGrant.id && grant.email !== savedGrant.email)]);
     setToast(`Acesso liberado por ${days} dias.`);
-    await loadData(true);
     return true;
   }
 
   async function revokeAccess(id) {
     setBusy(true);
-    const { error: revokeError } = await supabase.from("access_grants").update({ active: false }).eq("id", id);
+    const { data: revokedGrant, error: revokeError } = await supabase.from("access_grants").update({ active: false }).eq("id", id).select("*").single();
     setBusy(false);
-    if (revokeError) { setError(revokeError.message); return; }
+    if (revokeError) { setError(friendlyError(revokeError, "Não foi possível bloquear o acesso.")); return; }
+    setAccessGrants((current) => current.map((grant) => grant.id === id ? revokedGrant : grant));
     setToast("Acesso bloqueado.");
-    await loadData(true);
   }
 
   async function savePatient(values, patientId = null) {
-    setBusy(true);
     setError("");
     const initialAppointments = values.initial_appointments || [];
-    const payload = { ...values, user_id: session.user.id };
+    const payload = {
+      ...values,
+      user_id: session.user.id,
+      full_name: values.full_name.trim(),
+      patient_email: values.patient_email?.trim() || null,
+      guardian: values.guardian?.trim() || null,
+      guardian_contact: values.guardian_contact?.trim() || null,
+      cid: values.cid?.trim() || null,
+      therapies: values.therapies.trim(),
+      plan_expires_on: values.plan_expires_on || null,
+      administrative_notes: values.administrative_notes?.trim() || null,
+      clinical_notes: values.clinical_notes?.trim() || null,
+    };
     delete payload.schedule_text;
     delete payload.initial_appointments;
 
     const duplicateDraft = initialAppointments.find((item, index) => initialAppointments.findIndex((candidate) => candidate.date === item.date && candidate.time === item.time) !== index);
     const occupiedDraft = initialAppointments.find((item) => appointments.some((appointment) => dateKey(appointment.starts_at) === item.date && timeOf(appointment.starts_at) === item.time));
     if (!patientId && (duplicateDraft || occupiedDraft)) {
-      setBusy(false);
       setError(duplicateDraft ? "Existem datas e horários repetidos no cadastro." : `O horário de ${formatDate(occupiedDraft.date)} às ${occupiedDraft.time} já está ocupado.`);
-      return;
+      return false;
     }
 
+    setBusy(true);
     const query = patientId
-      ? supabase.from("patients").update(payload).eq("id", patientId)
-      : supabase.from("patients").insert(payload).select("id").single();
+      ? supabase.from("patients").update(payload).eq("id", patientId).select("*").single()
+      : supabase.from("patients").insert(payload).select("*").single();
     const { data: savedPatient, error: saveError } = await query;
+    let savedAppointments = [];
     if (!saveError && !patientId && initialAppointments.length) {
       const sessions = initialAppointments.map((item) => {
         const start = new Date(`${item.date}T${item.time}:00`);
@@ -594,16 +650,19 @@ function DashboardApp() {
           amount: Number(values.session_value || 0),
         };
       });
-      const { error: appointmentError } = await supabase.from("appointments").insert(sessions);
+      const { data: createdAppointments, error: appointmentError } = await supabase.from("appointments").insert(sessions).select("*");
       if (appointmentError) {
         await supabase.from("patients").delete().eq("id", savedPatient.id);
         setBusy(false);
-        setError(`Não foi possível adicionar as sessões: ${appointmentError.message}`);
-        return;
+        setError(friendlyError(appointmentError, "O paciente não foi cadastrado porque não foi possível criar as sessões. Tente novamente."));
+        return false;
       }
+      savedAppointments = createdAppointments || [];
     }
     setBusy(false);
-    if (saveError) { setError(saveError.message); return; }
+    if (saveError) { setError(friendlyError(saveError, patientId ? "Não foi possível atualizar o prontuário." : "Não foi possível cadastrar o paciente.")); return false; }
+    setPatients((current) => sortPatients(patientId ? current.map((patient) => patient.id === patientId ? savedPatient : patient) : [...current, savedPatient]));
+    if (savedAppointments.length) setAppointments((current) => sortAppointments([...current, ...savedAppointments]));
     setModal(null);
     setPatientView("list");
     setToast(patientId ? "Prontuário atualizado." : initialAppointments.length ? `Paciente cadastrado com ${initialAppointments.length} ${initialAppointments.length === 1 ? "sessão" : "sessões"}.` : "Paciente cadastrado.");
@@ -611,25 +670,29 @@ function DashboardApp() {
       setSelectedDate(dateFromKey(initialAppointments[0].date));
       setActiveTab("agenda");
     }
-    await loadData();
+    return true;
   }
 
   async function updateAppointment(id, changes, successMessage = "Sessão atualizada.") {
     setBusy(true);
-    const { error: updateError } = await supabase.from("appointments").update(changes).eq("id", id);
+    setError("");
+    const { data: updatedAppointment, error: updateError } = await supabase.from("appointments").update(changes).eq("id", id).select("*").single();
     setBusy(false);
-    if (updateError) { setError(updateError.message); return false; }
+    if (updateError) { setError(friendlyError(updateError, "Não foi possível atualizar a sessão.")); return false; }
+    setAppointments((current) => sortAppointments(current.map((appointment) => appointment.id === id ? updatedAppointment : appointment)));
     setToast(successMessage);
-    await loadData();
     return true;
   }
 
   async function createAppointment(values) {
     const patient = patients.find((item) => item.id === values.patient_id);
+    if (!patient) { setError("Escolha um paciente antes de adicionar a sessão."); return false; }
+    if (!values.date || !values.time) { setError("Informe a data e o horário da sessão."); return false; }
     const start = new Date(`${values.date}T${values.time}:00`);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
     setBusy(true);
-    const { error: createError } = await supabase.from("appointments").insert({
+    setError("");
+    const { data: createdAppointment, error: createError } = await supabase.from("appointments").insert({
       user_id: session.user.id,
       patient_id: values.patient_id,
       starts_at: start.toISOString(),
@@ -639,13 +702,14 @@ function DashboardApp() {
       status: "presente",
       payment_status: "Pendente",
       amount: Number(patient?.session_value || 0),
-    });
+    }).select("*").single();
     setBusy(false);
-    if (createError) { setError(createError.message); return; }
+    if (createError) { setError(friendlyError(createError, "Não foi possível adicionar a sessão à agenda.")); return false; }
+    setAppointments((current) => sortAppointments([...current, createdAppointment]));
     setModal(null);
     setSelectedDate(dateFromKey(values.date));
     setToast("Sessão adicionada à agenda.");
-    await loadData();
+    return true;
   }
 
   const dailyAppointments = useMemo(() => appointments.filter((item) => dateKey(item.starts_at) === dateKey(selectedDate)), [appointments, selectedDate]);
@@ -708,7 +772,7 @@ function DashboardApp() {
           {isOwner && <button className={activeTab === "acessos" ? "active" : ""} onClick={() => setActiveTab("acessos")}>Acessos</button>}
         </nav>
 
-        {error && <div className="error-banner">{error}<button onClick={() => setError("")}><X size={16} /></button></div>}
+        {error && <div className="error-banner" role="alert"><span>{error}</span><button aria-label="Fechar aviso" title="Fechar aviso" onClick={() => setError("")}><X size={16} /></button></div>}
         {dataLoading ? <div className="content-loading"><span className="spinner" />Carregando dados...</div> : (
           <>
             {activeTab === "agenda" && <AgendaView appointments={appointments} daily={dailyAppointments} patients={patients} selectedDate={selectedDate} setSelectedDate={setSelectedDate} calendarOpen={calendarOpen} setCalendarOpen={setCalendarOpen} openAppointment={(appointment) => setModal({ type: "patient", patientId: appointment.patient_id, appointmentId: appointment.id })} />}
@@ -851,7 +915,7 @@ function CancellationSurveyModal({ busy, periodEnd, onClose, onSubmit }) {
       </section>
 
       <div className="survey-cancellation-note"><strong>Seu acesso continuará até {periodEnd}.</strong><span>Não haverá nova cobrança nem reembolso do período atual.</span></div>
-      <div className="survey-actions"><button className="secondary-button" type="button" disabled={busy} onClick={() => onSubmit({ skipped: true })}>Pular pesquisa</button><button className="primary-button danger" disabled={busy || !survey.cancellation_reason}>{busy ? "Cancelando..." : "Enviar e continuar cancelamento"}</button></div>
+      <div className="survey-actions"><button className="secondary-button" type="button" disabled={busy} onClick={() => onSubmit({ skipped: true })}>Pular pesquisa</button><button className="primary-button danger" disabled={busy || !survey.cancellation_reason}>{busy && <span className="button-spinner" />}{busy ? "Cancelando..." : "Enviar e continuar cancelamento"}</button></div>
     </form>
   </Modal>;
 }
@@ -880,7 +944,7 @@ function ProfileView({ user, subscription, grant, isOwner, busy, onSaveName, onC
       <form onSubmit={submit}>
         <label>Nome completo<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
         <label>E-mail<input value={user.email || ""} readOnly aria-readonly="true" /></label>
-        <button className="primary-button" disabled={busy || name.trim() === (user.user_metadata?.full_name || "").trim()}>{busy ? "Salvando..." : "Salvar nome"}</button>
+        <button className="primary-button" disabled={busy || name.trim() === (user.user_metadata?.full_name || "").trim()}>{busy && <span className="button-spinner" />}{busy ? "Salvando..." : "Salvar nome"}</button>
       </form>
       <button className="secondary-button profile-logout" onClick={onLogout}><LogOut size={17} />Sair da conta</button>
     </section>
@@ -909,7 +973,7 @@ function AccessView({ grants, subscriptions, busy, onSave, onRevoke }) {
         <label>E-mail autorizado<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="cliente@exemplo.com" required /></label>
         <label>Duração em dias<input type="number" min="1" max="365" value={form.days} onChange={(event) => setForm({ ...form, days: event.target.value })} required /></label>
         <label>Observação<input value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Teste gratuito, plano mensal..." /></label>
-        <button className="primary-button" disabled={busy}><ShieldCheck size={17} />{busy ? "Liberando..." : "Liberar acesso"}</button>
+        <button className="primary-button" disabled={busy}>{busy ? <span className="button-spinner" /> : <ShieldCheck size={17} />}{busy ? "Liberando..." : "Liberar acesso"}</button>
       </form>
       <p className="access-hint"><strong>Liberação manual:</strong> use para cortesias e testes especiais. Assinaturas pagas são liberadas automaticamente pela Stripe.</p>
     </section>
@@ -973,7 +1037,7 @@ function PatientModal({ patient, appointment, busy, onClose, onSave, onStatus })
 
 function NewAppointmentModal({ patients, selectedDate, busy, onClose, onSave }) {
   const [form, setForm] = useState({ patient_id: patients[0]?.id || "", date: dateKey(selectedDate), time: "09:00", procedure: "Psicoterapia individual", unit: "" });
-  return <Modal title="Nova sessão" subtitle="Escolha a hora e os minutos. A duração padrão é de uma hora." onClose={onClose}>{patients.length ? <form className="compact-form" onSubmit={(e) => { e.preventDefault(); onSave(form); }}><label>Paciente<select value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.target.value })}>{patients.map((patient) => <option value={patient.id} key={patient.id}>{patient.full_name}</option>)}</select></label><div className="form-grid"><label>Data<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required /></label><label>Horário<input type="time" min="08:00" max="17:00" step="60" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} required /></label></div><label>Procedimento<input value={form.procedure} onChange={(e) => setForm({ ...form, procedure: e.target.value })} required /></label><label>Local / unidade<input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></label><div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={busy}>{busy ? "Salvando..." : "Adicionar à agenda"}</button></div></form> : <div className="empty-state"><UsersRound size={28} /><h3>Cadastre um paciente primeiro</h3><button className="secondary-button" onClick={onClose}>Fechar</button></div>}</Modal>;
+  return <Modal title="Nova sessão" subtitle="Escolha a hora e os minutos. A duração padrão é de uma hora." onClose={onClose}>{patients.length ? <form className="compact-form" onSubmit={(e) => { e.preventDefault(); onSave(form); }}><label>Paciente<select value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.target.value })}>{patients.map((patient) => <option value={patient.id} key={patient.id}>{patient.full_name}</option>)}</select></label><div className="form-grid"><label>Data<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required /></label><label>Horário<input type="time" min="08:00" max="17:00" step="60" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} required /></label></div><label>Procedimento<input value={form.procedure} onChange={(e) => setForm({ ...form, procedure: e.target.value })} required /></label><label>Local / unidade<input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></label><div className="form-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>Cancelar</button><button className="primary-button" disabled={busy}>{busy && <span className="button-spinner" />}{busy ? "Salvando..." : "Adicionar à agenda"}</button></div></form> : <div className="empty-state"><UsersRound size={28} /><h3>Cadastre um paciente primeiro</h3><button className="secondary-button" onClick={onClose}>Fechar</button></div>}</Modal>;
 }
 
 function FinanceModal({ appointment, patient, busy, onClose, onSave }) {
@@ -983,9 +1047,9 @@ function FinanceModal({ appointment, patient, busy, onClose, onSave }) {
     const oldStart = new Date(appointment.starts_at);
     const newStart = new Date(`${form.session_date}T${String(oldStart.getHours()).padStart(2, "0")}:${String(oldStart.getMinutes()).padStart(2, "0")}:00`);
     const duration = new Date(appointment.ends_at) - oldStart;
-    onSave({ amount: Number(form.amount), payment_status: form.payment_status, paid_on: form.payment_status === "Pago" ? form.paid_on : null, starts_at: newStart.toISOString(), ends_at: new Date(newStart.getTime() + duration).toISOString() });
+    onSave({ amount: Number(form.amount), payment_status: form.payment_status, paid_on: form.payment_status === "Pago" ? form.paid_on || dateKey(new Date()) : null, starts_at: newStart.toISOString(), ends_at: new Date(newStart.getTime() + duration).toISOString() });
   }
-  return <Modal title="Editar lançamento" subtitle={patient?.full_name} onClose={onClose}><form className="compact-form" onSubmit={submit}><div className="form-grid"><label>Data da sessão<input type="date" value={form.session_date} onChange={(e) => setForm({ ...form, session_date: e.target.value })} required /></label><label>Valor<input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></label><label>Situação<select value={form.payment_status} onChange={(e) => setForm({ ...form, payment_status: e.target.value, paid_on: e.target.value === "Pago" ? form.paid_on || dateKey(new Date()) : "" })}><option>Pago</option><option>Pendente</option><option>Cancelado</option></select></label><label>Data do pagamento<input type="date" disabled={form.payment_status !== "Pago"} required={form.payment_status === "Pago"} value={form.paid_on} onChange={(e) => setForm({ ...form, paid_on: e.target.value })} /></label></div><div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={busy}>{busy ? "Salvando..." : "Salvar alterações"}</button></div></form></Modal>;
+  return <Modal title="Editar lançamento" subtitle={patient?.full_name} onClose={onClose}><form className="compact-form" onSubmit={submit}><div className="form-grid"><label>Data da sessão<input type="date" value={form.session_date} onChange={(e) => setForm({ ...form, session_date: e.target.value })} required /></label><label>Valor<input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></label><label>Situação<select value={form.payment_status} onChange={(e) => setForm({ ...form, payment_status: e.target.value, paid_on: e.target.value === "Pago" ? form.paid_on || dateKey(new Date()) : "" })}><option>Pago</option><option>Pendente</option><option>Cancelado</option></select></label><label>Data do pagamento<input type="date" disabled={form.payment_status !== "Pago"} required={form.payment_status === "Pago"} value={form.paid_on} onChange={(e) => setForm({ ...form, paid_on: e.target.value })} /></label></div><div className="form-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>Cancelar</button><button className="primary-button" disabled={busy}>{busy && <span className="button-spinner" />}{busy ? "Salvando..." : "Salvar alterações"}</button></div></form></Modal>;
 }
 
 export default function App() {
