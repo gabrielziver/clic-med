@@ -8,6 +8,8 @@ import {
   Clock3,
   CreditCard,
   Download,
+  Eye,
+  EyeOff,
   LogOut,
   Plus,
   RefreshCw,
@@ -160,6 +162,7 @@ function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "di
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -205,7 +208,6 @@ function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "di
           <div className="auth-form-head">
             <h2>{checkoutSuccess && mode === "login" ? "Pagamento concluído. Entre na sua conta" : mode === "login" ? "Acesse sua conta" : checkoutSuccess ? "Crie seu primeiro acesso" : "Crie sua conta"}</h2>
             <p>{checkoutSuccess ? "Use o mesmo e-mail informado no checkout da Stripe." : mode === "login" ? "Entre para continuar no Clic Med." : "Comece a organizar seus atendimentos."}</p>
-            {checkoutSuccess && <div className="checkout-success-notice"><CircleDollarSign size={18} /><span><strong>Assinatura localizada</strong><small>Já tinha cadastro? Entre normalmente. É seu primeiro acesso? Escolha Criar conta.</small></span></div>}
           </div>
           <div className="auth-switch" role="tablist">
             <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
@@ -214,7 +216,7 @@ function AuthScreen({ onAuthenticated, initialMode = "login", signupOrigin = "di
           <form className="auth-form" onSubmit={submit}>
             {mode === "signup" && <label>Nome completo<input value={name} onChange={(event) => setName(event.target.value)} required autoComplete="name" /></label>}
             <label>E-mail<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="voce@exemplo.com" /></label>
-            <label>Senha<input type="password" minLength="6" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="Mínimo de 6 caracteres" /></label>
+            <label>Senha<span className="password-field"><input type={showPassword ? "text" : "password"} minLength="6" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="Mínimo de 6 caracteres" /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>
             {message && <p className="form-message" role="status">{message}</p>}
             <button className="primary-button wide" disabled={busy}>{busy ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}</button>
           </form>
