@@ -10,7 +10,9 @@ import {
   Download,
   Eye,
   EyeOff,
+  Headphones,
   LogOut,
+  Mail,
   Plus,
   RefreshCw,
   Search,
@@ -25,6 +27,7 @@ import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
 import { LandingPage, QuizPage } from "./Marketing.jsx";
 
 const OWNER_EMAIL = "oliverziver@gmail.com";
+const SUPPORT_EMAIL = "clicmed@gmail.com";
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const shortWeekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -730,6 +733,14 @@ function DashboardApp() {
     return `${String(availableHour ?? 9).padStart(2, "0")}:00`;
   }, [appointments, selectedDate]);
   const isOwner = session?.user.email?.toLowerCase() === OWNER_EMAIL;
+  const pageInfo = {
+    agenda: { eyebrow: longDate(selectedDate), title: "Agenda do dia" },
+    pacientes: { eyebrow: `${patients.filter((patient) => patient.status === "Ativo").length} pacientes ativos`, title: "Cadastro de pacientes" },
+    financeiro: { eyebrow: `${monthNames[selectedDate.getMonth()]} de ${selectedDate.getFullYear()}`, title: "Financeiro geral" },
+    perfil: { eyebrow: "Conta e assinatura", title: "Meu perfil" },
+    suporte: { eyebrow: "Ajuda e atendimento", title: "Fale conosco" },
+    acessos: { eyebrow: "Administração da assinatura", title: "Controle de acessos" },
+  }[activeTab];
 
   if (!isSupabaseConfigured) return <main className="setup-page"><section><Brand /><h1>Conecte o banco para iniciar</h1><p>As variáveis do Supabase ainda não foram configuradas.</p><code>VITE_SUPABASE_URL</code><code>VITE_SUPABASE_ANON_KEY</code></section></main>;
   if (authLoading) return <main className="loading-page"><Brand /><span className="spinner" /></main>;
@@ -752,6 +763,7 @@ function DashboardApp() {
           <button className={activeTab === "pacientes" ? "active" : ""} onClick={() => setActiveTab("pacientes")}><UsersRound size={18} />Pacientes</button>
           <button className={activeTab === "financeiro" ? "active" : ""} onClick={() => setActiveTab("financeiro")}><WalletCards size={18} />Financeiro</button>
           <button className={activeTab === "perfil" ? "active" : ""} onClick={() => setActiveTab("perfil")}><UserRound size={18} />Perfil</button>
+          <button className={activeTab === "suporte" ? "active" : ""} onClick={() => setActiveTab("suporte")}><Headphones size={18} />Fale conosco</button>
           {isOwner && <button className={activeTab === "acessos" ? "active" : ""} onClick={() => setActiveTab("acessos")}><ShieldCheck size={18} />Acessos</button>}
         </nav>
         <div className="sidebar-metric"><span>Entradas</span><strong>{currency.format(totals.received)}</strong><small>{currency.format(totals.pending)} pendente</small></div>
@@ -760,7 +772,7 @@ function DashboardApp() {
 
       <main className="workspace">
         <header className="topbar">
-          <div><p className="eyebrow">{activeTab === "agenda" ? longDate(selectedDate) : activeTab === "pacientes" ? `${patients.filter((p) => p.status === "Ativo").length} pacientes ativos` : activeTab === "financeiro" ? `${monthNames[selectedDate.getMonth()]} de ${selectedDate.getFullYear()}` : activeTab === "perfil" ? "Conta e assinatura" : "Administração da assinatura"}</p><h1>{activeTab === "agenda" ? "Agenda do dia" : activeTab === "pacientes" ? "Cadastro de pacientes" : activeTab === "financeiro" ? "Financeiro geral" : activeTab === "perfil" ? "Meu perfil" : "Controle de acessos"}</h1></div>
+          <div><p className="eyebrow">{pageInfo.eyebrow}</p><h1>{pageInfo.title}</h1></div>
           {(activeTab === "agenda" || activeTab === "pacientes") && <button className="primary-button" onClick={() => activeTab === "pacientes" ? setPatientView("add") : setModal({ type: "appointment-new" })}><Plus size={18} />{activeTab === "pacientes" ? "Novo paciente" : "Nova sessão"}</button>}
         </header>
 
@@ -769,6 +781,7 @@ function DashboardApp() {
           <button className={activeTab === "pacientes" ? "active" : ""} onClick={() => setActiveTab("pacientes")}>Pacientes</button>
           <button className={activeTab === "financeiro" ? "active" : ""} onClick={() => setActiveTab("financeiro")}>Financeiro</button>
           <button className={activeTab === "perfil" ? "active" : ""} onClick={() => setActiveTab("perfil")}>Perfil</button>
+          <button className={activeTab === "suporte" ? "active" : ""} onClick={() => setActiveTab("suporte")}>Suporte</button>
           {isOwner && <button className={activeTab === "acessos" ? "active" : ""} onClick={() => setActiveTab("acessos")}>Acessos</button>}
         </nav>
 
@@ -779,6 +792,7 @@ function DashboardApp() {
             {activeTab === "pacientes" && <PatientsView view={patientView} setView={setPatientView} patients={filteredPatients} search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} insuranceFilter={insuranceFilter} setInsuranceFilter={setInsuranceFilter} onOpen={(patient) => setModal({ type: "patient", patientId: patient.id })} onSave={(values) => savePatient(values)} busy={busy} defaultAppointmentDate={dateKey(selectedDate)} defaultAppointmentTime={defaultAppointmentTime} />}
             {activeTab === "financeiro" && <FinanceView totals={totals} appointments={appointments} patients={patients} selectedDate={selectedDate} professional={{ name: session.user.user_metadata?.full_name, email: session.user.email }} onEdit={(appointment) => setModal({ type: "finance", appointmentId: appointment.id })} />}
             {activeTab === "perfil" && <ProfileView user={session.user} subscription={currentSubscription} grant={currentGrant} isOwner={isOwner} busy={busy || billingBusy} onSaveName={updateProfileName} onCancelSubscription={cancelSubscription} onLogout={() => supabase.auth.signOut()} />}
+            {activeTab === "suporte" && <SupportView user={session.user} />}
             {activeTab === "acessos" && isOwner && <AccessView grants={accessGrants} subscriptions={stripeSubscriptions} busy={busy} onSave={saveAccessGrant} onRevoke={revokeAccess} />}
           </>
         )}
@@ -957,6 +971,56 @@ function ProfileView({ user, subscription, grant, isOwner, busy, onSaveName, onC
       {canCancel && <button className="secondary-button danger wide" disabled={busy} onClick={() => setShowCancellationSurvey(true)}>Cancelar assinatura</button>}
     </section>
     {showCancellationSurvey && <CancellationSurveyModal busy={busy} periodEnd={periodEnd} onClose={() => setShowCancellationSurvey(false)} onSubmit={confirmCancellation} />}
+  </div>;
+}
+
+function SupportView({ user }) {
+  const topics = {
+    duvida: "Dúvida sobre o aplicativo",
+    problema: "Problema técnico",
+    assinatura: "Assinatura e cobrança",
+    sugestao: "Sugestão de melhoria",
+  };
+  const [topic, setTopic] = useState("duvida");
+  const [message, setMessage] = useState("");
+
+  function submit(event) {
+    event.preventDefault();
+    const subject = `[Clic Med] ${topics[topic]}`;
+    const body = [
+      "Olá, equipe Clic Med!",
+      "",
+      `Nome: ${user.user_metadata?.full_name || "Não informado"}`,
+      `E-mail da conta: ${user.email || "Não informado"}`,
+      `Assunto: ${topics[topic]}`,
+      "",
+      message.trim(),
+    ].join("\n");
+    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
+  return <div className="support-layout">
+    <section className="panel support-form-panel">
+      <header><div className="support-icon"><Headphones size={24} /></div><div><h2>Como podemos ajudar?</h2><p>Envie sua dúvida, problema ou sugestão para nossa equipe.</p></div></header>
+      <form onSubmit={submit}>
+        <label>Assunto<select value={topic} onChange={(event) => setTopic(event.target.value)}>{Object.entries(topics).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        <label>E-mail para resposta<input type="email" value={user.email || ""} readOnly aria-readonly="true" /></label>
+        <label>Mensagem<textarea rows="7" minLength="10" maxLength="2000" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Conte o que aconteceu ou como podemos ajudar" required /></label>
+        <p className="privacy-note"><ShieldCheck size={17} />Não inclua nomes, diagnósticos ou outras informações sigilosas de pacientes.</p>
+        <button className="primary-button" disabled={message.trim().length < 10}><Mail size={17} />Enviar por e-mail</button>
+      </form>
+      <footer><span>Contato direto</span><a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></footer>
+    </section>
+
+    <section className="panel support-faq-panel">
+      <header><span>Respostas rápidas</span><h2>Dúvidas frequentes</h2></header>
+      <div className="support-faq-list">
+        <details><summary>Como altero uma sessão da agenda?</summary><p>Clique no atendimento e escolha o novo status. Para alterar valor ou data de pagamento, acesse Financeiro e selecione Editar.</p></details>
+        <details><summary>Como adiciono horários para um paciente?</summary><p>No cadastro do paciente, mantenha a opção de agenda ativada e informe as datas e horários das primeiras sessões.</p></details>
+        <details><summary>Onde encontro meu plano?</summary><p>Acesse Perfil para consultar a situação da assinatura, a próxima renovação e as opções disponíveis.</p></details>
+        <details><summary>Posso cancelar a assinatura?</summary><p>Sim. O cancelamento fica disponível em Perfil e seu acesso continua até o fim do período já contratado.</p></details>
+      </div>
+    </section>
   </div>;
 }
 
