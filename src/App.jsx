@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
+import { getMetaConsent, initializeMetaPixel, setMetaConsent } from "./lib/metaPixel.js";
 import { LandingPage, QuizPage } from "./Marketing.jsx";
 
 const OWNER_EMAIL = "oliverziver@gmail.com";
@@ -202,6 +203,29 @@ function Brand() {
         <span>Gestão para terapeutas</span>
       </div>
     </div>
+  );
+}
+
+function CookieConsent() {
+  const [choice, setChoice] = useState(() => getMetaConsent());
+  if (choice) return null;
+
+  function choose(value) {
+    setMetaConsent(value);
+    setChoice(value);
+  }
+
+  return (
+    <aside className="cookie-consent" aria-label="Preferências de cookies">
+      <div>
+        <strong>Sua privacidade importa</strong>
+        <p>Usamos cookies opcionais para medir visitas e melhorar nossos anúncios. Você pode aceitar ou continuar sem o rastreamento de marketing.</p>
+      </div>
+      <div className="cookie-consent-actions">
+        <button type="button" onClick={() => choose("denied")}>Recusar</button>
+        <button type="button" className="accept" onClick={() => choose("granted")}>Aceitar cookies</button>
+      </div>
+    </aside>
   );
 }
 
@@ -1117,8 +1141,8 @@ function FinanceModal({ appointment, patient, busy, onClose, onSave }) {
 }
 
 export default function App() {
+  useEffect(() => initializeMetaPixel(), []);
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
-  if (path === "/conheca") return <LandingPage />;
-  if (path === "/diagnostico") return <QuizPage />;
-  return <DashboardApp />;
+  const page = path === "/conheca" ? <LandingPage /> : path === "/diagnostico" ? <QuizPage /> : <DashboardApp />;
+  return <>{page}<CookieConsent /></>;
 }

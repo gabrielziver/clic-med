@@ -20,6 +20,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
+import { trackMetaEvent } from "./lib/metaPixel.js";
 
 const questions = [
   {
@@ -159,6 +160,11 @@ function setPageMetadata(title, description) {
 }
 
 async function startTrial(origin) {
+  trackMetaEvent("InitiateCheckout", {
+    content_name: "Clic Med Mensal",
+    currency: "BRL",
+    value: 67,
+  });
   if (!isSupabaseConfigured || !supabase) {
     window.location.assign(`/app?cadastro=1&origem=${encodeURIComponent(origin)}`);
     return;
