@@ -65,6 +65,11 @@ Deno.serve(async (request) => {
       line_items: [{ price: priceId, quantity: 1 }],
       payment_method_collection: "always",
       locale: "pt-BR",
+      custom_text: {
+        submit: {
+          message: "Você começa com 3 dias grátis. Depois, a assinatura é de R$ 67 por mês e pode ser cancelada a qualquer momento.",
+        },
+      },
       success_url: `${appUrl}/?checkout=success`,
       cancel_url: `${appUrl}/?checkout=canceled`,
       metadata: { supabase_user_id: user.id, email: user.email.toLowerCase() },

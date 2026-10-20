@@ -18,6 +18,11 @@ Deno.serve(async (request) => {
       line_items: [{ price: priceId, quantity: 1 }],
       payment_method_collection: "always",
       locale: "pt-BR",
+      custom_text: {
+        submit: {
+          message: "Você começa com 3 dias grátis. Depois, a assinatura é de R$ 67 por mês e pode ser cancelada a qualquer momento.",
+        },
+      },
       success_url: `${appUrl}/app?checkout=success&origem=${encodeURIComponent(origin)}`,
       cancel_url: `${appUrl}/conheca?checkout=canceled&origem=${encodeURIComponent(origin)}`,
       metadata: { signup_origin: origin },

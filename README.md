@@ -1,53 +1,118 @@
 # Clic Med
 
-MVP de gestão para psicólogos e terapeutas autônomos. Inclui agenda, cadastro de pacientes, prontuário administrativo, controle financeiro e autenticação por usuário.
+Sistema web de gestão para psicólogos e terapeutas autônomos. O Clic Med reúne agenda, pacientes, acompanhamento administrativo e financeiro em uma única aplicação, reduzindo a dependência de planilhas e ferramentas separadas.
 
-## Aplicação
+> Projeto autoral desenvolvido como produto SaaS e estudo de caso de portfólio.
 
-[Acessar o Clic Med](https://clic-med.vercel.app)
+[Acessar a aplicação](https://clic-med.vercel.app) · [Conhecer o produto](https://clic-med.vercel.app/conheca)
 
-## Desenvolvimento
+![Dashboard do Clic Med](public/clic-med-dashboard.png)
 
-1. Copie `.env.example` para `.env.local`.
-2. Preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-3. Execute o SQL de `supabase/schema.sql` no projeto Supabase.
-4. Rode `pnpm install` e `pnpm dev`.
+## O que o sistema oferece
 
-## Segurança
+- Agenda diária com criação, reagendamento e atualização do status das sessões.
+- Cadastro de pacientes, contatos, plano, frequência e informações administrativas.
+- Acompanhamento do ciclo e da quantidade de sessões por paciente.
+- Controle financeiro integrado aos atendimentos, com pagamentos e pendências.
+- Relatórios financeiros em PDF por dia ou por mês.
+- Autenticação e isolamento de dados por usuário com Supabase Auth e Row Level Security.
+- Assinatura recorrente, período de teste e portal do cliente com Stripe.
+- Cancelamento da assinatura dentro da aplicação e pesquisa de motivo.
+- Página pública responsiva com apresentação comercial e diagnóstico interativo.
+- Rastreamento de eventos de marketing com Meta Pixel.
 
-As tabelas usam Row Level Security. Cada registro possui `user_id`, e as políticas permitem acesso apenas ao usuário autenticado proprietário do registro.
+## Tecnologias
 
-## Assinaturas e controle de acesso
+- **Frontend:** React 19, Vite e CSS responsivo.
+- **Backend e banco de dados:** Supabase, PostgreSQL e Edge Functions em Deno.
+- **Autenticação e segurança:** Supabase Auth e políticas de Row Level Security.
+- **Pagamentos:** Stripe Checkout, Billing Portal e webhooks.
+- **Relatórios:** jsPDF e jsPDF AutoTable.
+- **Deploy:** Vercel.
 
-O plano **Clic Med Mensal** custa **R$ 67,00 por mês** e inclui **3 dias de teste gratuito**. O Checkout, a cobrança recorrente e o portal do cliente são hospedados pela Stripe. A página pública usa `create-public-checkout-session` para levar o visitante direto ao Checkout; depois ele retorna à tela de login e entra ou cria o primeiro acesso usando o mesmo e-mail da compra. Depois de um pagamento ou alteração da assinatura, o webhook atualiza `stripe_subscriptions` no Supabase e o banco libera ou bloqueia o acesso automaticamente.
+## Arquitetura
 
-Estados que liberam o sistema: `trialing` e `active`, desde que o período atual ainda esteja válido e a assinatura seja de produção (`livemode`). Cancelamentos, testes vencidos e pagamentos não regularizados bloqueiam os dados também pelas políticas de Row Level Security.
+```text
+React/Vite
+   ├── Supabase Auth
+   ├── PostgreSQL + Row Level Security
+   ├── Edge Functions
+   │      ├── criação do checkout
+   │      ├── portal do cliente
+   │      ├── cancelamento
+   │      └── webhook da Stripe
+   ├── Stripe Billing
+   └── geração local de relatórios em PDF
+```
 
-### Configuração da integração
+Os dados de cada profissional são protegidos no banco por políticas de acesso vinculadas ao usuário autenticado. A interface não é a única barreira de autorização.
 
-As Edge Functions estão em `supabase/functions` e usam estes secrets do projeto Supabase:
+## Executando localmente
 
-- `STRIPE_SECRET_KEY`: chave secreta da Stripe para o modo correspondente.
-- `STRIPE_PRICE_ID`: identificador do preço mensal de R$ 67,00.
-- `STRIPE_WEBHOOK_SECRET`: segredo de assinatura do destino de eventos.
-- `APP_URL`: URL pública do aplicativo.
+### Pré-requisitos
 
-O webhook deve apontar para `https://<project-ref>.supabase.co/functions/v1/stripe-webhook` e receber os eventos de Checkout, assinatura e fatura listados na função. Nunca coloque essas chaves no frontend, em `.env.local` ou no Git.
+- Node.js 20 ou superior
+- pnpm 10
+- Um projeto no Supabase
 
-Produto, preço, portal e webhook possuem configurações próprias no modo de produção. Assinaturas antigas de Sandbox ficam registradas como teste e nunca liberam acesso no ambiente publicado.
+### Instalação
 
-### Cortesias manuais
+```bash
+git clone https://github.com/oliverziver-cpu/clic-med.git
+cd clic-med
+pnpm install
+cp .env.example .env.local
+pnpm dev
+```
 
-O proprietário `oliverziver@gmail.com` possui acesso permanente e visualiza a aba **Acessos**.
+Preencha o arquivo `.env.local` com as credenciais públicas do seu projeto:
 
-1. Informe o e-mail que a pessoa usará no cadastro.
-2. Escolha a duração da liberação em dias. Para teste gratuito, use `3`.
-3. Clique em **Liberar acesso**.
-4. Para renovar, libere novamente o mesmo e-mail com o novo período.
-5. Para encerrar antes do vencimento, clique em **Bloquear**.
+```env
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-chave-publica-anon
+```
 
-Uma conta autenticada sem assinatura válida ou liberação manual ativa não consegue consultar pacientes ou sessões, pois a restrição também é aplicada nas políticas do banco.
+Execute as migrations disponíveis em `supabase/migrations` ou use `supabase/schema.sql` para criar a estrutura inicial do banco.
 
-## Relatórios
+## Configuração das assinaturas
 
-Na aba **Financeiro**, selecione **Dia** ou **Mês inteiro** e use **Baixar PDF**. O documento é gerado localmente no navegador e não envia os dados financeiros ou dos pacientes para serviços externos.
+As Edge Functions em `supabase/functions` utilizam os seguintes secrets no ambiente do Supabase:
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PRICE_ID`
+- `STRIPE_WEBHOOK_SECRET`
+- `APP_URL`
+
+O webhook deve apontar para:
+
+```text
+https://<project-ref>.supabase.co/functions/v1/stripe-webhook
+```
+
+Chaves privadas nunca devem ser adicionadas ao frontend, ao `.env.local` versionado ou ao repositório.
+
+## Segurança e privacidade
+
+- As tabelas utilizam Row Level Security.
+- Cada registro pertence ao usuário autenticado por meio de `user_id`.
+- Relatórios financeiros são gerados localmente no navegador.
+- Secrets da Stripe e a chave de serviço do Supabase ficam apenas no ambiente das Edge Functions.
+- Arquivos locais de ambiente, builds e configurações de deploy estão ignorados pelo Git.
+
+Este é um sistema de organização administrativa. Uma implantação real deve observar a LGPD e as regras profissionais aplicáveis antes de armazenar dados sensíveis.
+
+## Roadmap
+
+- [ ] Assistente com IA para consultas sobre agenda e rotina administrativa.
+- [ ] Chat contextual dentro da aplicação.
+- [ ] Lembretes e notificações de sessões.
+- [ ] Novos indicadores financeiros e operacionais.
+- [ ] Testes automatizados e monitoramento de erros.
+
+## Status
+
+O Clic Med está em evolução contínua. A versão atual já possui fluxo completo de autenticação, gestão, assinatura e deploy em produção.
+
+## Autor
+
+Desenvolvido por [Gabriel Oliveira](https://github.com/oliverziver-cpu).

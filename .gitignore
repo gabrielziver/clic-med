@@ -10,3 +10,5 @@ supabase/.temp/
 .DS_Store
 *.log
 tmp/
+public/ads/
+scripts/render_meta_video.py
