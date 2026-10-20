@@ -113,6 +113,10 @@ Este é um sistema de organização administrativa. Uma implantação real deve 
 
 O Clic Med está em evolução contínua. A versão atual já possui fluxo completo de autenticação, gestão, assinatura e deploy em produção.
 
+## Uso do código
+
+Este repositório é disponibilizado publicamente apenas para visualização como portfólio. O código é proprietário e não possui licença de uso, cópia, modificação, distribuição ou exploração comercial. Consulte o arquivo [LICENSE](LICENSE).
+
 ## Autor
 
 Desenvolvido por [Gabriel Oliveira](https://github.com/oliverziver-cpu).
