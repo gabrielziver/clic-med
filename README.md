@@ -6,7 +6,21 @@ Sistema web de gestão para psicólogos e terapeutas autônomos. O Clic Med reú
 
 [Acessar a aplicação](https://clic-med.vercel.app) · [Conhecer o produto](https://clic-med.vercel.app/conheca)
 
-![Dashboard do Clic Med](public/clic-med-dashboard.png)
+## Demonstração
+
+### Agenda e acompanhamento das sessões
+
+![Agenda diária do Clic Med](docs/screenshots/agenda.jpg)
+
+### Gestão de pacientes
+
+![Cadastro e organização de pacientes no Clic Med](docs/screenshots/pacientes.jpg)
+
+### Controle financeiro e relatórios
+
+![Painel financeiro do Clic Med](docs/screenshots/financeiro.jpg)
+
+As telas utilizam dados fictícios de demonstração.
 
 ## O que o sistema oferece
 
@@ -58,7 +72,7 @@ Os dados de cada profissional são protegidos no banco por políticas de acesso 
 ### Instalação
 
 ```bash
-git clone https://github.com/oliverziver-cpu/clic-med.git
+git clone https://github.com/gabrielziver/clic-med.git
 cd clic-med
 pnpm install
 cp .env.example .env.local
@@ -119,4 +133,4 @@ Este repositório é disponibilizado publicamente apenas para visualização com
 
 ## Autor
 
-Desenvolvido por [Gabriel Oliveira](https://github.com/oliverziver-cpu).
+Desenvolvido por [Gabriel Oliveira](https://github.com/gabrielziver).
